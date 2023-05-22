@@ -26,10 +26,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayDisabled
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
@@ -54,6 +58,8 @@ import com.alexvt.home.viewmodels.MainViewModel
 import com.alexvt.home.viewutils.ActionButton
 import com.alexvt.home.viewutils.ActionButtons
 import com.alexvt.home.viewutils.LinePatternOverlayView
+import com.alexvt.home.viewutils.MediaControlEvent
+import com.alexvt.home.viewutils.MediaProgress
 import com.alexvt.home.viewutils.SingleActionButton
 import com.alexvt.home.viewutils.StandardButton
 
@@ -61,8 +67,10 @@ import com.alexvt.home.viewutils.StandardButton
 @Composable
 fun BottomSheetView(
     bottomSheetState: MainViewModel.BottomSheetState,
+    mediaProgress: MediaProgress,
     isExpanded: Boolean,
     isLoading: Boolean,
+    onMediaControlClick: (MediaControlEvent) -> Unit,
     onSwitchMediaType: (String) -> Unit,
     onSelectSorting: (String) -> Unit,
     onSwitchAlbum: (String) -> Unit,
@@ -82,7 +90,52 @@ fun BottomSheetView(
         Box(
             Modifier.fillMaxWidth().height(60.dp)
         ) {
-            // Loading bar or pull handle
+            // Progress bar indicator & controls
+            if (bottomSheetState.isMediaProgressShown) {
+                Box(
+                    Modifier.fillMaxWidth().height(10.dp)
+                        .align(Alignment.BottomStart)
+                        .background(MaterialTheme.colors.primaryVariant.copy(alpha = 0.3f))
+                )
+                Box(
+                    Modifier.fillMaxWidth(mediaProgress.normalizedProgress.toFloat()).height(10.dp)
+                        .align(Alignment.BottomStart).padding(3.dp)
+                        .background(MaterialTheme.colors.onSecondary.copy(alpha = 0.4f))
+                )
+                Row(Modifier.align(Alignment.Center)) {
+                    RoundTranslucentButton(
+                        icon = Icons.Default.FastRewind,
+                        contentDescription = "Leap back",
+                        isExtraTranslucent = !isExpanded,
+                        onClick = { onMediaControlClick(MediaControlEvent.LEAP_BACK) },
+                    )
+                    RoundTranslucentButton(
+                        icon = if (mediaProgress.isProgressing) {
+                            Icons.Default.Pause
+                        } else {
+                            Icons.Default.PlayArrow
+                        },
+                        contentDescription = "Pause/Resume",
+                        isExtraTranslucent = !isExpanded,
+                        onClick = {
+                            onMediaControlClick(
+                                if (mediaProgress.isProgressing) {
+                                    MediaControlEvent.PAUSE
+                                } else {
+                                    MediaControlEvent.RESUME
+                                }
+                            )
+                        },
+                    )
+                    RoundTranslucentButton(
+                        icon = Icons.Default.FastForward,
+                        contentDescription = "Leap forward",
+                        isExtraTranslucent = !isExpanded,
+                        onClick = { onMediaControlClick(MediaControlEvent.LEAP_FORWARD) },
+                    )
+                }
+            }
+            // Loading bar
             if (isLoading) {
                 Box(Modifier.fillMaxWidth().height(10.dp).align(Alignment.BottomCenter)) {
                     LinePatternOverlayView(
@@ -93,6 +146,7 @@ fun BottomSheetView(
                     )
                 }
             }
+            // Settings
             if (isExpanded) {
                 RoundTranslucentButton(
                     icon = Icons.Default.Settings,
@@ -101,6 +155,7 @@ fun BottomSheetView(
                     onClick = onSettingsClick,
                 )
             }
+            // Bottom sheet toggle
             Box(Modifier.align(Alignment.CenterEnd)) {
                 RoundTranslucentButton(
                     icon = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,

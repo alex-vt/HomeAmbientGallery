@@ -6,6 +6,7 @@
     <uses-permission
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
         android:name=".App"
@@ -23,6 +24,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".repositories.GenericBluetoothLightRepository$BluetoothPermissionHandlingActivity"
+            android:exported="true"/>
     </application>
 
 </manifest>

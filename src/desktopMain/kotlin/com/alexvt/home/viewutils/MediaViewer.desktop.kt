@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.graphics.asSkiaBitmap
 import androidx.compose.ui.res.loadImageBitmap
 import com.alexvt.home.usecases.MediaType
+import kotlinx.coroutines.flow.Flow
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Codec
 import org.jetbrains.skia.Data
@@ -25,6 +26,8 @@ import kotlin.math.roundToInt
 actual fun MediaViewer(
     path: String,
     mediaType: MediaType,
+    mediaControlEvents: Flow<MediaControlEvent>,
+    onMediaProgress: (MediaProgress) -> Unit,
     onClick: () -> Unit,
     onLongOrRightClick: () -> Unit,
 ) {
@@ -37,7 +40,7 @@ actual fun MediaViewer(
     }
 }
 
-actual fun tryGetAverageColor(path: String, mediaType: MediaType): Int? {
+actual suspend fun tryGetAverageColor(path: String, mediaType: MediaType): Int? {
     return when (mediaType) {
         MediaType.VIDEO -> null // todo implement
         MediaType.GIF -> {

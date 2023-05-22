@@ -64,6 +64,11 @@ kotlin {
                 api("androidx.appcompat:appcompat:1.6.1")
                 api("androidx.core:core-ktx:1.10.1")
                 implementation("androidx.activity:activity-compose:1.7.1")
+                implementation("com.polidea.rxandroidble2:rxandroidble:1.13.1")
+                implementation("io.coil-kt:coil-compose:2.4.0")
+                implementation("io.coil-kt:coil-gif:2.4.0")
+                implementation("com.google.android.exoplayer:exoplayer-core:2.18.7")
+                implementation("com.google.android.exoplayer:exoplayer-ui:2.18.7")
             }
         }
 

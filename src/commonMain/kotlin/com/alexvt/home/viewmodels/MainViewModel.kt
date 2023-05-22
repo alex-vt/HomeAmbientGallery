@@ -175,6 +175,7 @@ class MainViewModel(
     }
 
     data class BottomSheetState(
+        val isMediaProgressShown: Boolean,
         val albumSelections: List<AlbumSelection>,
         val mediaTypeSelections: List<MediaTypeSelection>,
         val sortingSelections: List<SortingSelection>,
@@ -213,7 +214,7 @@ class MainViewModel(
         uiState = uiState.copy(
             bottomSheetState = uiState.bottomSheetState.copy(isAmbientColorSyncEnabled = false)
         )
-        useCases.setBluetoothLightColorUseCase.execute(color)
+        useCases.setBluetoothLightColorUseCase.execute(color, backgroundCoroutineScope)
     }
 
     fun showNextMediaItem(isPreviousInstead: Boolean) {
@@ -299,6 +300,7 @@ class MainViewModel(
                 totalCount = newMediaItems.size,
             ),
             bottomSheetState = bottomSheetState.copy(
+                isMediaProgressShown = currentMediaItem.type == MediaType.VIDEO,
                 // hits update, inclusions / exclusions remain
                 tagSelections = newTagHits?.map { tagHit ->
                     TagSelection(
@@ -369,6 +371,7 @@ class MainViewModel(
                 totalCount = 0,
             ),
             bottomSheetState = BottomSheetState(
+                isMediaProgressShown = false,
                 albumSelections = emptyList(), // will update from settings
                 sortingSelections = SortingType.values().mapIndexed { index, sortingType ->
                     SortingSelection(
@@ -440,7 +443,8 @@ class MainViewModel(
                     uiStateAfterAmbienceRelatedChange.takeIf {
                         it.bottomSheetState.isAmbientColorSyncEnabled // otherwise default color
                     }?.mediaState?.currentMediaItem
-                }
+                },
+                coroutineScope = backgroundCoroutineScope,
             ).collectLatest { ambientColor ->
                 uiState = uiState.updatedWithItems(ambientColor = ambientColor)
             }

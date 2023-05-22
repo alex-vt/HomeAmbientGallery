@@ -1,11 +1,11 @@
 package com.alexvt.home.repositories
 
-import com.alexvt.home.App.Companion.androidAppContext
+import android.os.Environment
 
 actual class DefaultFoldersRepository {
 
     private val storageFolderPath: String =
-        androidAppContext.dataDir.absolutePath.trimEnd('/')
+        Environment.getExternalStorageDirectory().path.trimEnd('/')
 
     actual fun get(): List<String> =
         listOf(

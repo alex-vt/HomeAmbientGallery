@@ -7,6 +7,7 @@ import java.nio.file.Paths
 import kotlin.io.path.fileSize
 import kotlin.io.path.getLastModifiedTime
 import kotlin.io.path.isRegularFile
+import kotlin.streams.toList
 
 data class FileMetadata(val fullPath: String, val modificationTimestamp: Long, val size: Long)
 

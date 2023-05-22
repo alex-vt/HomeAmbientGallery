@@ -38,8 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alexvt.home.AppDependencies
 import com.alexvt.home.viewmodels.MainViewModel
+import com.alexvt.home.viewutils.MediaControlEvent
+import com.alexvt.home.viewutils.MediaProgress
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import moe.tlaster.precompose.ui.viewModel
 
@@ -90,6 +94,12 @@ fun MainView(
         var contentWidthDp by remember { mutableStateOf(0.dp) }
         val localDensity = LocalDensity.current
         val focusRequester = remember { FocusRequester() }
+        val mediaControlEvents = remember {
+            MutableSharedFlow<MediaControlEvent>(
+                extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST,
+            )
+        }
+        var mediaProgress by remember { mutableStateOf(MediaProgress()) }
 
         BottomSheetScaffold(
             sheetBackgroundColor = Color.Transparent, // the peeking part won't obstruct the image
@@ -100,8 +110,10 @@ fun MainView(
                 with(viewModel) {
                     BottomSheetView(
                         bottomSheetState = uiState.bottomSheetState,
+                        mediaProgress = mediaProgress,
                         isLoading = uiState.mediaState.isUpdatingContent,
                         isExpanded = bottomSheetScaffoldState.bottomSheetState.isExpanded,
+                        onMediaControlClick = mediaControlEvents::tryEmit,
                         onSwitchMediaType = ::switchMediaType,
                         onSelectSorting = ::selectSorting,
                         onSwitchAlbum = ::switchAlbum,
@@ -151,6 +163,8 @@ fun MainView(
             Box(Modifier.fillMaxSize().background(MaterialTheme.colors.surface)) {
                 MediaView(
                     mediaState = uiState.mediaState,
+                    mediaControlEvents = mediaControlEvents,
+                    onMediaProgress = { mediaProgress = it },
                     onClick = { viewModel.showNextMediaItem(isPreviousInstead = false) },
                     onLongOrRightClick = { viewModel.showNextMediaItem(isPreviousInstead = true) },
                 )

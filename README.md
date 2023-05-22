@@ -1,6 +1,6 @@
 # Home Ambient Gallery
 
-Media viewer / slideshow app that adjusts Bluetooth lighting to the image. For desktop.
+Media viewer / slideshow app that adjusts Bluetooth lighting to the image. For desktop and Android.
 
 * Select albums to view images, gifs and videos from.
 * Sort by name, size, modification date, or shuffle randomly.
@@ -25,15 +25,15 @@ Media with file names matching any of the excluded tags will not be shown.
 
 Keyboard controls:
 
-| Key   | Action                                |
-|-------|---------------------------------------|
-| Left  | Show previous media item              |
-| Right | Show next media item                  |
+| Key   | Action                                 |
+|-------|----------------------------------------|
+| Left  | Show previous media item               |
+| Right | Show next media item                   |
 | Up    | Pull up bottom sheet with view options |
-| Down  | Close bottom sheet                 |
-| F     | Enter / exit fullscreen               |
-| F11   | Enter / exit fullscreen               |
-| Esc   | Exit fullscreen                       |
+| Down  | Close bottom sheet                     |
+| F     | Enter / exit fullscreen                |
+| F11   | Enter / exit fullscreen                |
+| Esc   | Exit fullscreen                        |
 
 ## Build & run
 
@@ -64,6 +64,34 @@ Folder with the app will be `build/compose/binaries/main/app/HomeAmbientGallery`
 
 To run the app, in the app folder execute `bin/HomeAmbientGallery`
 
+### Android
+
+Requirements: Java, Android SDK
+
+Signing setup:
+* Put your `keystore.jks` to the project's root folder for signing the app.
+* Create a `signing.properties` in the project's root folder with `keystore.jks` credentials:
+```
+signingStoreLocation=keystore.jks
+signingStorePassword=<keystore.jks password>
+signingKeyAlias=<keystore.jks alias>
+signingKeyPassword=<keystore.jks key password>
+```
+#### Run on ADB connected device:
+```
+./gradlew installRelease
+```
+
+#### Build installable APK
+```
+./gradlew assembleRelease
+```
+Install `build/outputs/apk/release/HomeAmbientGallery-release.apk` on Android device.
+
+On first run, the app will request enabling all files access, 
+for viewing media from arbitrary locations (see setup info below).
+
+
 ## Initial setup & settings
 
 When started for the first time, the app views images from the downloads folder by default.
@@ -89,7 +117,7 @@ Put Bluetooth lights device MAC addresses in the settings to enable controlling 
 one per line. Example of a MAC address: `01:23:45:AB:CD:EF`.
 
 Generic Bluetooth Low Energy lights that accept characteristic `0x0009` 
-value `56[red][green][blue]00f0aa` are supported. 
+(UUID `0000ffd9-0000-1000-8000-00805f9b34fb`) value `56[red][green][blue]00f0aa` are supported. 
 Red, green and blue are hexadecimal values of corresponding color component brightness, 
 from `00` to `ff`. With all color component values `00`, light can be considered off.
 
@@ -111,9 +139,11 @@ When Bluetooth lights are added in settings, the relevant options will show on t
 
 Tech stack: Kotlin, Compose Multiplatform
 
-Bluetooth control: `gatttool` command line util on desktop Linux
+Bluetooth control: `gatttool` command line util on desktop Linux, 
+`dariuszseweryn/RxAndroidBle` on Android.
 
 Build system: Gradle
+
 
 ## License
 

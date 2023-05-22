@@ -2,6 +2,7 @@ package com.alexvt.home.usecases
 
 import com.alexvt.home.AppScope
 import com.alexvt.home.viewutils.tryGetAverageColor
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
@@ -20,11 +21,12 @@ class WatchAmbientColorForMediaUseCase(
      * Calculated ambient colors are dispatched also to Bluetooth lights.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun execute(mediaItemFlow: Flow<MediaItem?>): Flow<Long> =
+    fun execute(mediaItemFlow: Flow<MediaItem?>, coroutineScope: CoroutineScope): Flow<Long> =
         mediaItemFlow.distinctUntilChanged().conflate().mapLatest { mediaItemOrNull ->
             mediaItemOrNull?.run {
                 tryGetAverageColor(path, type)
-            }?.toLong()?.also(setBluetoothLightColorUseCase::execute) ?: 0x00000000
+            }?.toLong()?.also { setBluetoothLightColorUseCase.execute(it, coroutineScope) }
+                ?: 0x00000000
         }
 
 }

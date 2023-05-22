@@ -21,12 +21,17 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.alexvt.home.viewmodels.MainViewModel
 import com.alexvt.home.viewutils.LinePatternOverlayView
+import com.alexvt.home.viewutils.MediaControlEvent
+import com.alexvt.home.viewutils.MediaProgress
 import com.alexvt.home.viewutils.MediaViewer
+import kotlinx.coroutines.flow.Flow
 
 @ExperimentalFoundationApi
 @Composable
 fun MediaView(
     mediaState: MainViewModel.MediaState,
+    mediaControlEvents: Flow<MediaControlEvent>,
+    onMediaProgress: (MediaProgress) -> Unit,
     onClick: () -> Unit,
     onLongOrRightClick: () -> Unit,
 ) {
@@ -57,6 +62,8 @@ fun MediaView(
         MediaViewer(
             path = mediaState.currentMediaItem.path,
             mediaType = mediaState.currentMediaItem.type,
+            mediaControlEvents,
+            onMediaProgress,
             onClick,
             onLongOrRightClick,
         )
