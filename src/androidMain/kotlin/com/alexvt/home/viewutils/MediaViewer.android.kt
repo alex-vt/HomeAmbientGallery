@@ -3,13 +3,16 @@ package com.alexvt.home.viewutils
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -25,6 +28,7 @@ import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.ui.StyledPlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 
@@ -93,39 +97,38 @@ fun VideoPlayer(
     onMediaProgress: (MediaProgress) -> Unit,
 ) {
     val context = LocalContext.current
+    val exoPlayer = remember { ExoPlayer.Builder(context).build() }
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build()
-    }
-
-    LaunchedEffect(Unit) {
-        val progressPollIntervalMillis = 8L // 120 FPS
-        while (true) {
-            with(exoPlayer) {
-                val normalizedProgress =
-                    if (duration > 0) {
-                        (currentPosition.toDouble() / duration).coerceAtMost(1.0)
-                    } else {
-                        0.0
-                    }
-                onMediaProgress(MediaProgress(normalizedProgress, isProgressing = isPlaying))
-            }
-            delay(progressPollIntervalMillis)
-        }
-    }
+    // Playback parameters need to update only on recompositions with new path.
+    var currentPositionPersisting by rememberSaveable(path) { mutableStateOf(0L) }
+    var isPlayingPersisting by rememberSaveable(path) { mutableStateOf(true) }
 
     LaunchedEffect(path) {
-        exoPlayer.setMediaItem(com.google.android.exoplayer2.MediaItem.fromUri(path))
-        exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
-        exoPlayer.prepare()
-        exoPlayer.play()
-        mediaControlEvents.collect {
-            Log.d("HomeAmbientGallery", "" + it)
-            when (it) {
-                MediaControlEvent.RESUME -> exoPlayer.play()
-                MediaControlEvent.PAUSE -> exoPlayer.pause()
-                MediaControlEvent.LEAP_FORWARD -> exoPlayer.seekForward()
-                MediaControlEvent.LEAP_BACK -> exoPlayer.seekBack()
+        with(exoPlayer) {
+            setMediaItem(com.google.android.exoplayer2.MediaItem.fromUri(path))
+            repeatMode = Player.REPEAT_MODE_ONE
+            prepare()
+            seekTo(currentPositionPersisting)
+            if (isPlayingPersisting) play()
+
+            launch {
+                val progressPollIntervalMillis = 8L // 120 FPS
+                while (true) {
+                    currentPositionPersisting = currentPosition
+                    isPlayingPersisting = isPlaying
+                    val normalizedProgress = getNormalizedProgress()
+                    onMediaProgress(MediaProgress(normalizedProgress, isProgressing = isPlaying))
+                    delay(progressPollIntervalMillis)
+                }
+            }
+
+            mediaControlEvents.collect {
+                when (it) {
+                    MediaControlEvent.RESUME -> play()
+                    MediaControlEvent.PAUSE -> pause()
+                    MediaControlEvent.LEAP_FORWARD -> seekForward()
+                    MediaControlEvent.LEAP_BACK -> seekBack()
+                }
             }
         }
     }
@@ -144,6 +147,13 @@ fun VideoPlayer(
         }
     }
 }
+
+private fun ExoPlayer.getNormalizedProgress(): Double =
+    if (duration > 0) {
+        (currentPosition.toDouble() / duration).coerceAtMost(1.0)
+    } else {
+        0.0
+    }
 
 @Composable
 fun ImageViewer(path: String) {
