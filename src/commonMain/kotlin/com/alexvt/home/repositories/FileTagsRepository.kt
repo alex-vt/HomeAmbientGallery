@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets
 data class TagMatrix(
     val allFilenames: List<String>,
     val allTags: List<String>,
-    val booleanMatrix: List<List<Boolean>>
+    val tagOccurrenceMatrix: List<List<Boolean>>
 )
 
 @AppScope
@@ -44,7 +44,7 @@ class FileTagsRepository(
         return TagMatrix(
             allFilenames = filenamesToTags.map { it.first },
             allTagsSortedLikeInHeader,
-            booleanMatrix = filenamesToTags.map { (filename, tagsForFilename) ->
+            tagOccurrenceMatrix = filenamesToTags.map { (filename, tagsForFilename) ->
                 allTagsSortedLikeInHeader.map { tag ->
                     tag in tagsForFilename
                 }
@@ -69,7 +69,7 @@ class FileTagsRepository(
     fun watchTagsFor(filenameWithoutExtension: String): Flow<Set<String>> =
         tagMatrixFlow.map { tagMatrix ->
             val tagIndex = tagMatrix.allFilenames.indexOf(filenameWithoutExtension)
-            val tagRow = tagMatrix.booleanMatrix.getOrElse(tagIndex) { emptyList() }
+            val tagRow = tagMatrix.tagOccurrenceMatrix.getOrElse(tagIndex) { emptyList() }
             tagMatrix.allTags.zip(tagRow) { tag, isSet ->
                 tag to isSet
             }.filter { it.second }.map { it.first }.toSet()

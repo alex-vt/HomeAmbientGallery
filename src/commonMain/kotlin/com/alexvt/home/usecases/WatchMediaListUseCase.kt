@@ -153,40 +153,57 @@ class WatchMediaListUseCase(
             tag in mediaSelectionParams.excludedTags
         }
         val exclusionBoolMatrix =
-            tagMatrix.booleanMatrix.map { row ->
+            tagMatrix.tagOccurrenceMatrix.map { row ->
                 (row zip rowExclusionMask).filter { (cellValue, maskValue) ->
                     maskValue
                 }.map { (cellValue, maskValue) ->
                     cellValue
                 }
-            }.toList() // retained columns for only excluded tags
+            } // retained columns for only excluded tags
         coroutineContext.ensureActive()
 
-        val rowInclusionMask = tagMatrix.allTags.map { tag ->
-            tag in mediaSelectionParams.includedTags
-        }
-        val inclusionBoolMatrix =
-            tagMatrix.booleanMatrix.map { row ->
-                (row zip rowInclusionMask).filter { (cellValue, maskValue) ->
-                    maskValue
-                }.map { (cellValue, maskValue) ->
-                    cellValue
-                }
-            }.toList() // retained columns for only included tags
-        coroutineContext.ensureActive()
+        val areIncludedTagsUsed = mediaSelectionParams.includedTags.isNotEmpty()
 
-        val allowedFilenamesByTags =
-            (tagMatrix.allFilenames zip (exclusionBoolMatrix zip inclusionBoolMatrix))
-                .filter { (filename, exclusionAndInclusionRows) ->
-                    val (exclusionRow, inclusionRow) = exclusionAndInclusionRows
-                    exclusionRow.none { it } && inclusionRow.all { it }
-                }.map { (filename, exclusionAndInclusionRows) ->
-                    filename
-                }.toSet()
-        coroutineContext.ensureActive()
+        if (areIncludedTagsUsed) {
+            val rowInclusionMask = tagMatrix.allTags.map { tag ->
+                tag in mediaSelectionParams.includedTags
+            }
+            val inclusionBoolMatrix =
+                tagMatrix.tagOccurrenceMatrix.map { row ->
+                    (row zip rowInclusionMask).filter { (cellValue, maskValue) ->
+                        maskValue
+                    }.map { (cellValue, maskValue) ->
+                        cellValue
+                    }
+                } // retained columns for only included tags
+            coroutineContext.ensureActive()
 
-        return filter { fullPath ->
-            getFilenameWithoutExtension(fullPath) in allowedFilenamesByTags
+            val allowedFilenamesByTags =
+                (tagMatrix.allFilenames zip (exclusionBoolMatrix zip inclusionBoolMatrix))
+                    .filter { (filename, exclusionAndInclusionRows) ->
+                        val (exclusionRow, inclusionRow) = exclusionAndInclusionRows
+                        exclusionRow.none { it } && inclusionRow.all { it }
+                    }.map { (filename, exclusionAndInclusionRows) ->
+                        filename
+                    }.toSet()
+            coroutineContext.ensureActive()
+
+            return filter { fullPath ->
+                getFilenameWithoutExtension(fullPath) in allowedFilenamesByTags
+            }
+        } else {
+            val disallowedFilenamesByTags =
+                (tagMatrix.allFilenames zip exclusionBoolMatrix)
+                    .filter { (filename, exclusionRow) ->
+                        exclusionRow.any { it }
+                    }.map { (filename, exclusionAndInclusionRows) ->
+                        filename
+                    }.toSet()
+            coroutineContext.ensureActive()
+
+            return filterNot { fullPath ->
+                getFilenameWithoutExtension(fullPath) in disallowedFilenamesByTags
+            }
         }
     }
 
