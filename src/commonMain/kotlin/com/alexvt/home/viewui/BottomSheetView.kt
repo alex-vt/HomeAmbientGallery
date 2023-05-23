@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.FloatingActionButton
@@ -174,111 +175,111 @@ fun BottomSheetView(
             Modifier.fillMaxWidth().background(MaterialTheme.colors.background)
                 .padding(horizontal = 8.dp)
         ) {
+            if (!bottomSheetState.isEditingTags) {
 
-            Spacer(Modifier.height(8.dp))
-            TextLabel("Show from albums:")
-            Spacer(Modifier.height(4.dp))
-            Column(Modifier.heightIn(max = 80.dp).verticalScroll(rememberScrollState())) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    bottomSheetState.albumSelections.forEach { selection ->
-                        Box(Modifier.padding(bottom = 8.dp)) {
+                Spacer(Modifier.height(8.dp))
+                TextLabel("Show from albums:")
+                Spacer(Modifier.height(4.dp))
+                Column(Modifier.heightIn(max = 80.dp).verticalScroll(rememberScrollState())) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        bottomSheetState.albumSelections.forEach { selection ->
+                            Box(Modifier.padding(bottom = 8.dp)) {
+                                SingleActionButton(
+                                    text = selection.name,
+                                    isSelected = selection.isSelected,
+                                    onClick = { onSwitchAlbum(selection.name) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                TextLabel("Media forms:")
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    bottomSheetState.mediaTypeSelections.run {
+                        val actionIconMap = mapOf(
+                            "Image" to ActionButton(
+                                text = "Image",
+                                icon = Icons.Outlined.Image,
+                                isAlwaysShown = true,
+                            ),
+                            "Gif" to ActionButton(
+                                text = "Gif",
+                                icon = Icons.Default.Gif,
+                                isAlwaysShown = true,
+                            ),
+                            "Video" to ActionButton(
+                                text = "Video",
+                                icon = Icons.Default.Movie,
+                                isAlwaysShown = true,
+                            ),
+                        )
+                        map { selection ->
+                            actionIconMap.getValue(selection.name)
+                                .copy(isSelected = selection.isSelected)
+                        }.forEach { actionButton ->
                             SingleActionButton(
-                                text = selection.name,
-                                isSelected = selection.isSelected,
-                                onClick = { onSwitchAlbum(selection.name) },
+                                text = actionButton.text,
+                                icon = actionButton.icon,
+                                isSelected = actionButton.isSelected,
+                                onClick = { onSwitchMediaType(actionButton.text) },
                             )
                         }
                     }
                 }
-            }
 
-            TextLabel("Media forms:")
-            Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                bottomSheetState.mediaTypeSelections.run {
-                    val actionIconMap = mapOf(
-                        "Image" to ActionButton(
-                            text = "Image",
-                            icon = Icons.Outlined.Image,
-                            isAlwaysShown = true,
-                        ),
-                        "Gif" to ActionButton(
-                            text = "Gif",
-                            icon = Icons.Default.Gif,
-                            isAlwaysShown = true,
-                        ),
-                        "Video" to ActionButton(
-                            text = "Video",
-                            icon = Icons.Default.Movie,
-                            isAlwaysShown = true,
-                        ),
-                    )
-                    map { selection ->
-                        actionIconMap.getValue(selection.name)
-                            .copy(isSelected = selection.isSelected)
-                    }.forEach { actionButton ->
-                        SingleActionButton(
-                            text = actionButton.text,
-                            icon = actionButton.icon,
-                            isSelected = actionButton.isSelected,
-                            onClick = { onSwitchMediaType(actionButton.text) },
+                Spacer(Modifier.height(8.dp))
+                TextLabel("Sort:")
+                Spacer(Modifier.height(4.dp))
+                ActionButtons(
+                    actionButtons = bottomSheetState.sortingSelections.run {
+                        val actionIconMap = mapOf(
+                            "Random" to ActionButton(
+                                text = "Random",
+                                icon = Icons.Default.Shuffle,
+                                isAlwaysShown = true,
+                            ),
+                            "Date new to old" to ActionButton(
+                                text = "Date new to old",
+                                icon = Icons.Default.AutoAwesome,
+                                isAlwaysShown = true,
+                            ),
+                            "Date old to new" to ActionButton(
+                                text = "Date old to new",
+                                icon = Icons.Default.SnippetFolder,
+                                isAlwaysShown = true,
+                            ),
+                            "Name a to z" to ActionButton(
+                                text = "Name a to z",
+                                icon = Icons.Default.FormatSize,
+                                isAlwaysShown = true,
+                            ),
+                            "Name z to a" to ActionButton(
+                                text = "Name z to a",
+                                icon = Icons.Default.TextFields,
+                                isAlwaysShown = false,
+                            ),
+                            "Size small to big" to ActionButton(
+                                text = "Size small to big",
+                                icon = Icons.Default.TrendingUp,
+                                isAlwaysShown = true,
+                            ),
+                            "Size big to small" to ActionButton(
+                                text = "Size big to small",
+                                icon = Icons.Default.TrendingDown,
+                                isAlwaysShown = true,
+                            ),
                         )
-                    }
+                        map { selection ->
+                            actionIconMap.getValue(selection.name)
+                                .copy(isSelected = selection.isSelected)
+                        }
+                    },
+                ) { selection ->
+                    onSelectSorting(selection)
                 }
-            }
 
-            Spacer(Modifier.height(8.dp))
-            TextLabel("Sort:")
-            Spacer(Modifier.height(4.dp))
-            ActionButtons(
-                actionButtons = bottomSheetState.sortingSelections.run {
-                    val actionIconMap = mapOf(
-                        "Random" to ActionButton(
-                            text = "Random",
-                            icon = Icons.Default.Shuffle,
-                            isAlwaysShown = true,
-                        ),
-                        "Date new to old" to ActionButton(
-                            text = "Date new to old",
-                            icon = Icons.Default.AutoAwesome,
-                            isAlwaysShown = true,
-                        ),
-                        "Date old to new" to ActionButton(
-                            text = "Date old to new",
-                            icon = Icons.Default.SnippetFolder,
-                            isAlwaysShown = true,
-                        ),
-                        "Name a to z" to ActionButton(
-                            text = "Name a to z",
-                            icon = Icons.Default.FormatSize,
-                            isAlwaysShown = true,
-                        ),
-                        "Name z to a" to ActionButton(
-                            text = "Name z to a",
-                            icon = Icons.Default.TextFields,
-                            isAlwaysShown = false,
-                        ),
-                        "Size small to big" to ActionButton(
-                            text = "Size small to big",
-                            icon = Icons.Default.TrendingUp,
-                            isAlwaysShown = true,
-                        ),
-                        "Size big to small" to ActionButton(
-                            text = "Size big to small",
-                            icon = Icons.Default.TrendingDown,
-                            isAlwaysShown = true,
-                        ),
-                    )
-                    map { selection ->
-                        actionIconMap.getValue(selection.name)
-                            .copy(isSelected = selection.isSelected)
-                    }
-                },
-            ) { selection ->
-                onSelectSorting(selection)
-            }
-
-            if (!bottomSheetState.isEditingTags) {
                 Spacer(Modifier.height(8.dp))
                 TextLabel("Slideshow, slide time:")
                 Spacer(Modifier.height(4.dp))
