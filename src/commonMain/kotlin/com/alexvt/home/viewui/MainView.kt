@@ -118,6 +118,7 @@ fun MainView(
                         onSelectSorting = ::selectSorting,
                         onSwitchAlbum = ::switchAlbum,
                         onToggleTagsVisibility = ::toggleTagsVisibility,
+                        onToggleTagsEditing = ::toggleTagsEditing,
                         onSwitchTag = ::switchTag,
                         onIncludeAllTags = ::selectIncludeAllTags,
                         onExcludeAllTags = ::selectExcludeAllTags,

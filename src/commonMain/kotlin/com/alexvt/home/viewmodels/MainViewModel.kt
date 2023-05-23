@@ -9,6 +9,7 @@ import com.alexvt.home.usecases.MediaItem
 import com.alexvt.home.usecases.MediaSelectionParams
 import com.alexvt.home.usecases.MediaType
 import com.alexvt.home.usecases.SetBluetoothLightColorUseCase
+import com.alexvt.home.usecases.SetTagHitUseCase
 import com.alexvt.home.usecases.SortingType
 import com.alexvt.home.usecases.TagHit
 import com.alexvt.home.usecases.WatchAmbientColorForMediaUseCase
@@ -36,6 +37,7 @@ class MainViewModelUseCases(
     val watchMediaListUseCase: WatchMediaListUseCase,
     val watchSettingsUseCase: WatchSettingsUseCase,
     val setBluetoothLightColorUseCase: SetBluetoothLightColorUseCase,
+    val setTagHitUseCase: SetTagHitUseCase,
     val watchAmbientColorForMediaUseCase: WatchAmbientColorForMediaUseCase,
     val checkSaveEditableSettingsUseCase: CheckSaveEditableSettingsUseCase,
 )
@@ -120,19 +122,28 @@ class MainViewModel(
     )
 
     fun switchTag(tagText: String, isToToggleExclusion: Boolean) {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                tagSelections = uiState.bottomSheetState
-                    .tagSelections.map {
-                        when {
+        with(uiState.bottomSheetState) {
+            uiState = uiState.copy(
+                bottomSheetState = copy(
+                    tagSelections = tagSelections.map {
+                        when { // in edit mode, hit toggle use case replaces inclusions/exclusions
                             it.name != tagText -> it
+                            isEditingTags -> it.copy(isHit = !it.isHit).also { updatedSelection ->
+                                useCases.setTagHitUseCase.execute(
+                                    path = uiState.mediaState.currentMediaItem.path,
+                                    tag = updatedSelection.name,
+                                    isHit = updatedSelection.isHit,
+                                )
+                            }
+
                             it.isExcluded -> it.copy(isIncluded = false, isExcluded = false)
                             isToToggleExclusion -> it.copy(isIncluded = false, isExcluded = true)
                             else -> it.copy(isIncluded = !it.isIncluded)
                         }
                     }
+                )
             )
-        )
+        }
     }
 
     fun selectIncludeAllTags() {
@@ -180,6 +191,7 @@ class MainViewModel(
         val mediaTypeSelections: List<MediaTypeSelection>,
         val sortingSelections: List<SortingSelection>,
         val areTagsShowing: Boolean,
+        val isEditingTags: Boolean,
         val tagSelections: List<TagSelection>,
         val slideshowIntervalSelections: List<SlideshowIntervalSelection>,
         val areBluetoothOptionsShowing: Boolean, // when there are Bluetooth lights in settings
@@ -188,18 +200,43 @@ class MainViewModel(
     )
 
     fun toggleTagsVisibility() {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                areTagsShowing = !uiState.bottomSheetState.areTagsShowing,
-                tagSelections = if (uiState.bottomSheetState.areTagsShowing) {
-                    uiState.bottomSheetState.tagSelections.map { // clear tags on hide
-                        it.copy(isIncluded = false, isExcluded = false)
-                    }
-                } else {
-                    uiState.bottomSheetState.tagSelections
-                }
+        with(uiState.bottomSheetState) {
+            uiState = uiState.copy(
+                bottomSheetState = copy(
+                    areTagsShowing = !areTagsShowing,
+                    // when hiding tags, reset their selections and cancel editing
+                    isEditingTags = if (areTagsShowing) false else isEditingTags,
+                    tagSelections = if (areTagsShowing) {
+                        tagSelections.map { it.copy(isIncluded = false, isExcluded = false) }
+                    } else {
+                        tagSelections
+                    },
+                )
             )
-        )
+        }
+    }
+
+    fun toggleTagsEditing() {
+        with(uiState.bottomSheetState) {
+            uiState = uiState.copy(
+                bottomSheetState = copy(
+                    isEditingTags = !isEditingTags,
+                    // when starting editing tags, disable slideshow and ambience to focus on tags
+                    isAmbientColorSyncEnabled = if (!isEditingTags) {
+                        false
+                    } else {
+                        isAmbientColorSyncEnabled
+                    },
+                    slideshowIntervalSelections = if (!isEditingTags) {
+                        slideshowIntervalSelections.mapIndexed { index, selection ->
+                            selection.copy(isSelected = index == 0)
+                        }
+                    } else {
+                        slideshowIntervalSelections
+                    },
+                )
+            )
+        }
     }
 
     fun toggleAmbientColorSync() {
@@ -387,6 +424,7 @@ class MainViewModel(
                         )
                     },
                 areTagsShowing = false,
+                isEditingTags = false,
                 tagSelections = emptyList(), // wil be loaded
                 slideshowIntervalSelections = emptyList(), // will update from settings
                 areBluetoothOptionsShowing = false, // will update from settings

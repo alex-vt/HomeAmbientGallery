@@ -242,8 +242,8 @@ fun SingleActionButton(
                 text = text,
                 color = with(MaterialTheme.colors) {
                     when {
-                        isNegativelySelected -> onError
                         isAccentuated && isSelected -> onPrimary
+                        isNegativelySelected -> onError
                         isAccentuated -> secondary
                         isSelected -> onBackground
                         else -> onSurface

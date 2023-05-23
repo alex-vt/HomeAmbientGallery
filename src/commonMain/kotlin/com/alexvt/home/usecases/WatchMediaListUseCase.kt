@@ -147,7 +147,7 @@ class WatchMediaListUseCase(
         if (!areTagsUsed) return this
 
         coroutineContext.ensureActive()
-        val tagMatrix = tagsRepository.readTagMatrix()
+        val tagMatrix = tagsRepository.getTagMatrix()
 
         val rowExclusionMask = tagMatrix.allTags.map { tag ->
             tag in mediaSelectionParams.excludedTags

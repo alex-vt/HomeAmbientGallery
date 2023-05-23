@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.FloatingActionButton
@@ -75,6 +76,7 @@ fun BottomSheetView(
     onSelectSorting: (String) -> Unit,
     onSwitchAlbum: (String) -> Unit,
     onToggleTagsVisibility: () -> Unit,
+    onToggleTagsEditing: () -> Unit,
     onSwitchTag: (String, Boolean) -> Unit,
     onIncludeAllTags: () -> Unit,
     onExcludeAllTags: () -> Unit,
@@ -276,38 +278,55 @@ fun BottomSheetView(
                 onSelectSorting(selection)
             }
 
-            Spacer(Modifier.height(8.dp))
-            TextLabel("Slideshow, slide time:")
-            Spacer(Modifier.height(4.dp))
-            ActionButtons(
-                actionButtons = bottomSheetState.slideshowIntervalSelections.run {
-                    val minVisibleButtons = 3
-                    mapIndexed { index, selection ->
-                        ActionButton(
-                            text = selection.name,
-                            icon = if (selection.name == "Off") {
-                                Icons.Default.PlayDisabled
-                            } else {
-                                Icons.Default.Slideshow
-                            },
-                            isSelected = selection.isSelected,
-                            isAlwaysShown = index < minVisibleButtons,
-                        )
-                    }
-                },
-            ) { selection ->
-                onSelectSlideshowInterval(selection)
+            if (!bottomSheetState.isEditingTags) {
+                Spacer(Modifier.height(8.dp))
+                TextLabel("Slideshow, slide time:")
+                Spacer(Modifier.height(4.dp))
+                ActionButtons(
+                    actionButtons = bottomSheetState.slideshowIntervalSelections.run {
+                        val minVisibleButtons = 3
+                        mapIndexed { index, selection ->
+                            ActionButton(
+                                text = selection.name,
+                                icon = if (selection.name == "Off") {
+                                    Icons.Default.PlayDisabled
+                                } else {
+                                    Icons.Default.Slideshow
+                                },
+                                isSelected = selection.isSelected,
+                                isAlwaysShown = index < minVisibleButtons,
+                            )
+                        }
+                    },
+                ) { selection ->
+                    onSelectSlideshowInterval(selection)
+                }
             }
 
             if (bottomSheetState.tagSelections.isNotEmpty()) {
-                SettingSwitch(
-                    label = "Show tags",
-                    value = bottomSheetState.areTagsShowing,
-                ) {
-                    onToggleTagsVisibility()
+                Row {
+                    SettingSwitch(
+                        label = "Show tags",
+                        value = bottomSheetState.areTagsShowing,
+                    ) {
+                        onToggleTagsVisibility()
+                    }
+                    if (bottomSheetState.areTagsShowing) {
+                        Spacer(Modifier.width(8.dp))
+                        SettingSwitch(
+                            label = "Edit",
+                            value = bottomSheetState.isEditingTags,
+                        ) {
+                            onToggleTagsEditing()
+                        }
+                    }
                 }
                 if (bottomSheetState.areTagsShowing) {
-                    Column(Modifier.heightIn(max = 120.dp).verticalScroll(rememberScrollState())) {
+                    Column(
+                        Modifier // more space to edited tags
+                            .heightIn(max = if (bottomSheetState.isEditingTags) 320.dp else 120.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             bottomSheetState.tagSelections.forEach { selection ->
                                 Box(Modifier.padding(bottom = 8.dp)) {
@@ -333,14 +352,16 @@ fun BottomSheetView(
                             }
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        StandardButton(text = "Include all", onClick = onIncludeAllTags)
-                        StandardButton(text = "Exclude all", onClick = onExcludeAllTags)
-                        StandardButton(text = "Clear all", onClick = onClearAllTags)
+                    if (!bottomSheetState.isEditingTags) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            StandardButton(text = "Include all", onClick = onIncludeAllTags)
+                            StandardButton(text = "Exclude all", onClick = onExcludeAllTags)
+                            StandardButton(text = "Clear all", onClick = onClearAllTags)
+                        }
                     }
                 }
             }
-            if (bottomSheetState.areBluetoothOptionsShowing) {
+            if (bottomSheetState.areBluetoothOptionsShowing && !bottomSheetState.isEditingTags) {
                 SettingSwitch(
                     label = "Match background & Bluetooth lights",
                     value = bottomSheetState.isAmbientColorSyncEnabled,
