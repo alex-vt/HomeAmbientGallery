@@ -3,7 +3,8 @@ package com.alexvt.home.viewui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.BottomSheetScaffold
 import androidx.compose.material.BottomSheetScaffoldState
 import androidx.compose.material.BottomSheetState
@@ -187,7 +188,15 @@ fun MainView(
                     }
                 }
         ) {
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colors.surface)) {
+            val density = LocalDensity.current.density
+            Box(
+                Modifier.fillMaxWidth()
+                    .height(
+                        (bottomSheetScaffoldState.bottomSheetState.requireOffset() / density + 60)
+                            .dp
+                    )
+                    .background(MaterialTheme.colors.surface)
+            ) {
                 MediaView(
                     mediaState = uiState.mediaState,
                     mediaControlEvents = mediaControlEvents,
