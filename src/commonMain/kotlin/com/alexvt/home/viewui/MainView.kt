@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.BottomSheetScaffold
+import androidx.compose.material.BottomSheetScaffoldState
 import androidx.compose.material.BottomSheetState
 import androidx.compose.material.BottomSheetValue
 import androidx.compose.material.Colors
@@ -43,6 +44,7 @@ import com.alexvt.home.viewutils.MediaProgress
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import moe.tlaster.precompose.ui.viewModel
@@ -114,18 +116,42 @@ fun MainView(
                         isLoading = uiState.mediaState.isUpdatingContent,
                         isExpanded = bottomSheetScaffoldState.bottomSheetState.isExpanded,
                         onMediaControlClick = mediaControlEvents::tryEmit,
-                        onSwitchMediaType = ::switchMediaType,
-                        onSelectSorting = ::selectSorting,
-                        onSwitchAlbum = ::switchAlbum,
+                        onSwitchMediaType = {
+                            bottomSheetScaffoldState.ifNoDrag(coroutineScope) {
+                                switchMediaType(it)
+                            }
+                        },
+                        onSelectSorting = {
+                            bottomSheetScaffoldState.ifNoDrag(coroutineScope) {
+                                selectSorting(it)
+                            }
+                        },
+                        onSwitchAlbum = {
+                            bottomSheetScaffoldState.ifNoDrag(coroutineScope) {
+                                switchAlbum(it)
+                            }
+                        },
                         onToggleTagsVisibility = ::toggleTagsVisibility,
                         onToggleTagsEditing = ::toggleTagsEditing,
-                        onSwitchTag = ::switchTag,
+                        onSwitchTag = { tagText, isToToggleExclusion ->
+                            bottomSheetScaffoldState.ifNoDrag(coroutineScope) {
+                                switchTag(tagText, isToToggleExclusion)
+                            }
+                        },
                         onIncludeAllTags = ::selectIncludeAllTags,
                         onExcludeAllTags = ::selectExcludeAllTags,
                         onClearAllTags = ::selectClearAllTags,
-                        onSelectSlideshowInterval = ::selectSlideshowInterval,
+                        onSelectSlideshowInterval = {
+                            bottomSheetScaffoldState.ifNoDrag(coroutineScope) {
+                                selectSlideshowInterval(it)
+                            }
+                        },
                         onToggleAmbientColorSync = ::toggleAmbientColorSync,
-                        onBluetoothColorSelection = ::selectBluetoothLightColor,
+                        onBluetoothColorSelection = {
+                            bottomSheetScaffoldState.ifNoDrag(coroutineScope) {
+                                selectBluetoothLightColor(it)
+                            }
+                        },
                         onToggleBottomSheetClick = {
                             bottomSheetScaffoldState.bottomSheetState.toggle(coroutineScope)
                         },
@@ -178,6 +204,20 @@ fun MainView(
                 onSaveClick = viewModel::saveSettings,
                 onDiscardClick = viewModel::discardSettings,
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterialApi::class)
+private fun BottomSheetScaffoldState.ifNoDrag(coroutineScope: CoroutineScope, action: () -> Unit) {
+    coroutineScope.launch {
+        val initialBottomSheetOffset = bottomSheetState.requireOffset()
+        val dragDetectionDelayMillis = 50L
+        delay(dragDetectionDelayMillis)
+        val currentBottomSheetOffset = bottomSheetState.requireOffset()
+        val isDraggingBottomSheet = initialBottomSheetOffset != currentBottomSheetOffset
+        if (!isDraggingBottomSheet) {
+            action()
         }
     }
 }

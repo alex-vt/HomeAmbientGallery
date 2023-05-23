@@ -2,7 +2,7 @@ package com.alexvt.home.viewutils
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -166,30 +166,29 @@ fun SingleActionButton(
             .height(32.dp)
             .zIndex(if (isSelected) 1f else 0f)
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onLongPress = {
-                        if (onLongOrRightClick != null) {
-                            onLongOrRightClick()
-                        }
-                    },
-                    onTap = {
-                        onClick()
-                    }
-                )
-            }
-            .pointerInput(Unit) {
                 awaitEachGesture {
                     val event = awaitPointerEvent()
+                    var isLongClick = false
+                    event.changes.mapNotNull {
+                        awaitLongPressOrCancellation(it.id)
+                    }.forEach {
+                        if (onLongOrRightClick != null) {
+                            onLongOrRightClick()
+                            isLongClick = true
+                        }
+                    }
                     if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Press) {
                         if (event.buttons.isSecondaryPressed) {
                             if (onLongOrRightClick != null) {
                                 onLongOrRightClick()
                             }
+                        } else if (!isLongClick) {
+                            onClick()
                         }
                     }
                 }
             },
-        onClick = onClick,
+        onClick = { },
         shape = RoundedCornerShape(
             topStart = if (isFirst) cornerRadius else 0.dp,
             topEnd = if (isLast) cornerRadius else 0.dp,
