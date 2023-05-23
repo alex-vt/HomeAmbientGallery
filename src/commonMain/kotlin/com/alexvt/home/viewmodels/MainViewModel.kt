@@ -17,11 +17,15 @@ import com.alexvt.home.usecases.WatchMediaListUseCase
 import com.alexvt.home.usecases.WatchSettingsUseCase
 import com.alexvt.home.usecases.WatchTagsUseCase
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -42,6 +46,7 @@ class MainViewModelUseCases(
     val checkSaveEditableSettingsUseCase: CheckSaveEditableSettingsUseCase,
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val useCases: MainViewModelUseCases,
     backgroundDispatcher: CoroutineDispatcher,
@@ -293,6 +298,12 @@ class MainViewModel(
         )
     }
 
+    fun setUiShown(isShown: Boolean) {
+        uiState = uiState.copy(
+            isShown = isShown,
+        )
+    }
+
     data class UiState(
         val mediaState: MediaState,
         val bottomSheetState: BottomSheetState,
@@ -300,41 +311,47 @@ class MainViewModel(
         val editableSettings: EditableSettings,
         val theme: Theme,
         val isThemeLight: Boolean,
+        val isShown: Boolean,
     )
 
     private fun UiState.updatedWithItems(
-        newMediaItems: List<MediaItem> = mediaState.viewableMediaItems,
+        newMediaItems: List<MediaItem>? = null,
         ambientColor: Long? = null,
-        isUpdatingContent: Boolean = false,
+        isUpdatingContent: Boolean? = null,
         newTagHits: List<TagHit>? = null,
         newSettings: Settings? = null,
     ): UiState {
-        val isMediaListChanged =
-            newMediaItems != mediaState.viewableMediaItems
-        val currentMediaItem =
-            if (isMediaListChanged) {
-                newMediaItems.firstOrNull()
-                    ?: MediaItem(path = "", type = MediaType.NONE) // placeholder
+        val updatedMediaItems = newMediaItems ?: mediaState.viewableMediaItems
+        val isUpdateFinished = mediaState.isUpdatingContent && isUpdatingContent == false
+        val currentMediaItem = with(mediaState) {
+            // if not a finished content update, trying to preserve current item
+            if (!isUpdateFinished && currentMediaItem in updatedMediaItems) {
+                currentMediaItem
             } else {
-                mediaState.currentMediaItem
+                val preferableIndex = if (isUpdateFinished) 0 else naturalCounter - 1
+                updatedMediaItems.getOrElse(preferableIndex) {
+                    MediaItem(path = "", type = MediaType.NONE) // placeholder
+                }
             }
+        }
         val naturalCounter =
-            if (isMediaListChanged) {
-                1
+            // if not a finished content update, trying to preserve current item
+            if (!isUpdateFinished && currentMediaItem in updatedMediaItems) {
+                updatedMediaItems.indexOf(currentMediaItem) + 1
             } else {
-                mediaState.naturalCounter
+                1
             }
         return copy(
             mediaState = MediaState(
-                newMediaItems,
+                updatedMediaItems,
                 currentMediaItem,
                 isCounterVisible = currentMediaItem.type !in listOf(
                     MediaType.NONE, MediaType.LOADING,
                 ),
                 ambientColor = ambientColor ?: mediaState.ambientColor,
-                isUpdatingContent = isUpdatingContent,
+                isUpdatingContent = isUpdatingContent ?: mediaState.isUpdatingContent,
                 naturalCounter = naturalCounter,
-                totalCount = newMediaItems.size,
+                totalCount = updatedMediaItems.size,
             ),
             bottomSheetState = bottomSheetState.copy(
                 isMediaProgressShown = currentMediaItem.type == MediaType.VIDEO,
@@ -435,6 +452,7 @@ class MainViewModel(
             editableSettings = EditableSettings("", "", ""), // will update from settings
             theme = settings.theme,
             isThemeLight = settings.theme.color.run { background.normal > text.normal },
+            isShown = true,
         )
     }
 
@@ -448,62 +466,118 @@ class MainViewModel(
             )
         )
 
-    init {
-        backgroundCoroutineScope.launch {
-            useCases.watchMediaListUseCase.execute(
-                mediaSelectionParamsFlow = uiStateFlow.map { it.toMediaSelectionParams() }
-                    .distinctUntilChanged().onEach {
-                        uiState = uiState.updatedWithItems(isUpdatingContent = true)
-                    },
-            ).collectLatest { mediaItems ->
-                uiState = uiState.updatedWithItems(newMediaItems = mediaItems)
-            }
+    private var uiState: UiState = (uiStateFlow as MutableStateFlow).value
+        set(newUiState) {
+            field = newUiState.apply((uiStateFlow as MutableStateFlow)::tryEmit)
         }
-        backgroundCoroutineScope.launch {
-            useCases.watchTagsUseCase.execute(
-                filePathFlow = uiStateFlow.map { it.mediaState.currentMediaItem.path }
-                    .distinctUntilChanged(),
-            ).collectLatest { tagHits ->
+
+    private suspend fun watchMediaItems(initialRandomSeed: Long) {
+        // will be kept same until media selection params change
+        var randomSeed = initialRandomSeed
+        uiStateFlow.map { it.toMediaSelectionParams() }
+            .distinctUntilChanged { old, new ->
+                if (old != new) randomSeed += new.hashCode()
+                old == new
+            }
+            .flatMapLatest { mediaSelectionParams ->
+                uiState = uiState.updatedWithItems(isUpdatingContent = true)
+                uiStateFlow.map { it.isShown }
+                    .distinctUntilChanged()
+                    .flatMapLatest { isShown ->
+                        if (isShown) {
+                            useCases.watchMediaListUseCase
+                                .execute(mediaSelectionParams, randomSeed)
+                        } else {
+                            flowOf(uiState.mediaState.viewableMediaItems)
+                        }
+                    }
+            }.collectLatest { mediaItems ->
+                uiState = uiState.updatedWithItems(
+                    newMediaItems = mediaItems,
+                    isUpdatingContent = false,
+                )
+            }
+    }
+
+    private suspend fun watchTags() {
+        uiStateFlow.map { it.isShown to it.mediaState.currentMediaItem.path }
+            .distinctUntilChanged()
+            .flatMapLatest { (isUiShown, currentMediaItemPath) ->
+                if (isUiShown) {
+                    useCases.watchTagsUseCase.execute(currentMediaItemPath)
+                } else {
+                    emptyFlow()
+                }
+            }.collectLatest { tagHits ->
                 uiState = uiState.updatedWithItems(newTagHits = tagHits)
             }
+    }
+
+    private suspend fun watchSettings() {
+        useCases.watchSettingsUseCase.execute().collectLatest { settings ->
+            uiState = uiState.updatedWithItems(newSettings = settings)
         }
-        backgroundCoroutineScope.launch {
-            useCases.watchSettingsUseCase.execute().collectLatest { settings ->
-                uiState = uiState.updatedWithItems(newSettings = settings)
-            }
-        }
-        backgroundCoroutineScope.launch {
-            useCases.watchAmbientColorForMediaUseCase.execute(
-                mediaItemFlow = uiStateFlow.distinctUntilChanged { old, new ->
-                    old.mediaState.currentMediaItem == new.mediaState.currentMediaItem
-                            && old.isAmbientColorSyncEnabled() == new.isAmbientColorSyncEnabled()
-                }.map { uiStateAfterAmbienceRelatedChange ->
-                    uiStateAfterAmbienceRelatedChange.takeIf {
-                        it.bottomSheetState.isAmbientColorSyncEnabled // otherwise default color
-                    }?.mediaState?.currentMediaItem
-                },
-                coroutineScope = backgroundCoroutineScope,
-            ).collectLatest { ambientColor ->
+    }
+
+    private suspend fun watchMediaAmbientColor() {
+        uiStateFlow.map {
+            it.mediaState.currentMediaItem to it.bottomSheetState.isAmbientColorSyncEnabled
+        }.distinctUntilChanged()
+            .flatMapLatest { (currentMediaItem, isAmbientColorSyncEnabled) ->
+                if (isAmbientColorSyncEnabled) {
+                    useCases.watchAmbientColorForMediaUseCase.execute(
+                        mediaItem = currentMediaItem, coroutineScope = backgroundCoroutineScope,
+                    )
+                } else {
+                    flowOf(0)
+                }
+            }.collectLatest { ambientColor ->
                 uiState = uiState.updatedWithItems(ambientColor = ambientColor)
             }
-        }
-        backgroundCoroutineScope.launch {
-            uiStateFlow.distinctUntilChanged { old, new ->
-                old.mediaState.currentMediaItem == new.mediaState.currentMediaItem
-                        && old.slideshowIntervalOrNull() == new.slideshowIntervalOrNull()
-            }.map { uiStateAfterSlideshowRelatedChange ->
-                uiStateAfterSlideshowRelatedChange.slideshowIntervalOrNull()
-            }.collectLatest { delayMillisOrNull ->
-                delayMillisOrNull?.takeIf { it > 0 }?.let { delayMillis ->
+    }
+
+    private suspend fun watchSlideshowProgress() {
+        uiStateFlow.map { it.mediaState.currentMediaItem to it.slideshowIntervalOrNull() }
+            .distinctUntilChanged()
+            .collectLatest { (currentMediaItem, slideshowIntervalOrNull) ->
+                slideshowIntervalOrNull?.takeIf { it > 0 }?.let { delayMillis ->
                     delay(delayMillis)
                     showNextMediaItem(isPreviousInstead = false)
                 }
             }
+    }
+
+    private suspend fun watchSlideshowVisibility() {
+        uiStateFlow.map { it.isShown }
+            .distinctUntilChanged()
+            .onEach { isShown ->
+                if (!isShown) {
+                    disableSlideshow()
+                }
+            }.collect { }
+    }
+
+    init {
+        with(backgroundCoroutineScope) {
+            launch { watchMediaItems(initialRandomSeed = System.currentTimeMillis()) }
+            launch { watchTags() }
+            launch { watchSettings() }
+            launch { watchMediaAmbientColor() }
+            launch { watchSlideshowProgress() }
+            launch { watchSlideshowVisibility() }
         }
     }
 
-    private fun UiState.isAmbientColorSyncEnabled(): Boolean =
-        bottomSheetState.isAmbientColorSyncEnabled
+    private fun disableSlideshow() {
+        uiState = uiState.copy(
+            bottomSheetState = uiState.bottomSheetState.copy(
+                slideshowIntervalSelections = uiState.bottomSheetState
+                    .slideshowIntervalSelections.mapIndexed { index, selection ->
+                        selection.copy(isSelected = index == 0)
+                    }
+            )
+        )
+    }
 
     private fun UiState.slideshowIntervalOrNull(): Long? =
         bottomSheetState.slideshowIntervalSelections.firstOrNull { it.isSelected }?.delayMillis
@@ -520,11 +594,6 @@ class MainViewModel(
                 includedTags = tagSelections.filter { it.isIncluded }.map { it.name }.toSet(),
                 excludedTags = tagSelections.filter { it.isExcluded }.map { it.name }.toSet(),
             )
-        }
-
-    private var uiState: UiState = (uiStateFlow as MutableStateFlow).value
-        set(newUiState) {
-            field = newUiState.apply((uiStateFlow as MutableStateFlow)::tryEmit)
         }
 
 }

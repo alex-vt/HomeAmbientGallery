@@ -26,6 +26,7 @@ data class MediaProgress(val normalizedProgress: Double = 0.0, val isProgressing
 expect fun MediaViewer(
     path: String,
     mediaType: MediaType,
+    isVisible: Boolean,
     mediaControlEvents: Flow<MediaControlEvent>,
     onMediaProgress: (MediaProgress) -> Unit,
     onClick: () -> Unit,

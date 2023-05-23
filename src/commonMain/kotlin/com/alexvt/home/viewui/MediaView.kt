@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 fun MediaView(
     mediaState: MainViewModel.MediaState,
+    isVisible: Boolean,
     mediaControlEvents: Flow<MediaControlEvent>,
     onMediaProgress: (MediaProgress) -> Unit,
     onClick: () -> Unit,
@@ -62,6 +63,7 @@ fun MediaView(
         MediaViewer(
             path = mediaState.currentMediaItem.path,
             mediaType = mediaState.currentMediaItem.type,
+            isVisible,
             mediaControlEvents,
             onMediaProgress,
             onClick,

@@ -6,8 +6,15 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.alexvt.home.viewui.MainView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import moe.tlaster.precompose.lifecycle.Lifecycle
+import moe.tlaster.precompose.lifecycle.LifecycleObserver
 import moe.tlaster.precompose.lifecycle.PreComposeActivity
 import moe.tlaster.precompose.lifecycle.setContent
 
@@ -19,7 +26,8 @@ class MainActivity : PreComposeActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MainView(App.dependencies, Dispatchers.Default)
+            val isShown by getIsShownStateFlow().collectAsState()
+            MainView(isShown, App.dependencies, Dispatchers.Default)
         }
 
         if (!Environment.isExternalStorageManager()) { // todo request more gracefully
@@ -33,5 +41,14 @@ class MainActivity : PreComposeActivity() {
         }
 
     }
+
+    private fun getIsShownStateFlow(): StateFlow<Boolean> =
+        MutableStateFlow(false).apply {
+            lifecycle.addObserver(object : LifecycleObserver {
+                override fun onStateChanged(state: Lifecycle.State) {
+                    tryEmit(state == Lifecycle.State.Active)
+                }
+            })
+        }.asStateFlow()
 
 }

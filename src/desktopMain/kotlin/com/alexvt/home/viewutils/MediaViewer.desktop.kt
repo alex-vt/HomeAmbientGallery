@@ -26,14 +26,15 @@ import kotlin.math.roundToInt
 actual fun MediaViewer(
     path: String,
     mediaType: MediaType,
+    isVisible: Boolean,
     mediaControlEvents: Flow<MediaControlEvent>,
     onMediaProgress: (MediaProgress) -> Unit,
     onClick: () -> Unit,
     onLongOrRightClick: () -> Unit,
 ) {
     when (mediaType) {
-        MediaType.VIDEO -> VideoPlayer(path, onClick, onLongOrRightClick)
-        MediaType.GIF -> GifAnimation(path)
+        MediaType.VIDEO -> VideoPlayer(path, isVisible, onClick, onLongOrRightClick)
+        MediaType.GIF -> GifAnimation(path, isVisible)
         MediaType.IMAGE -> ImageViewer(path)
         MediaType.LOADING -> LoadingPlaceholder()
         MediaType.NONE -> NoContentPlaceholder()
@@ -76,9 +77,14 @@ private fun Bitmap.getSparseAverageColor(dimensionSampleCount: Int = 10): Int =
 // Video renders on a native overlay surface that has to handle clicks directly.
 // todo software rendering into Compose bitmap
 @Composable
-fun VideoPlayer(path: String, onClick: () -> Unit, onLongOrRightClick: () -> Unit) {
+fun VideoPlayer(
+    path: String,
+    isVisible: Boolean,
+    onClick: () -> Unit,
+    onLongOrRightClick: () -> Unit,
+) {
     val state = rememberVideoPlayerState()
-    state.isResumed = true
+    state.isResumed = isVisible
     val progress by VideoPlayer(
         url = path,
         state = state,
@@ -89,7 +95,8 @@ fun VideoPlayer(path: String, onClick: () -> Unit, onLongOrRightClick: () -> Uni
 }
 
 @Composable
-fun GifAnimation(path: String) {
+fun GifAnimation(path: String, isVisible: Boolean) {
+    if (!isVisible) return
     val codec = remember(path) {
         val bytes = File(path).readBytes()
         Codec.makeFromData(Data.makeFromBytes(bytes))

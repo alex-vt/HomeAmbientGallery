@@ -54,12 +54,14 @@ import moe.tlaster.precompose.ui.viewModel
 @ExperimentalFoundationApi
 @Composable
 fun MainView(
+    isShown: Boolean,
     dependencies: AppDependencies,
     backgroundDispatcher: CoroutineDispatcher,
 ) {
     val viewModel = viewModel(MainViewModel::class) {
         MainViewModel(dependencies.mainViewModelUseCases, backgroundDispatcher)
     }
+    viewModel.setUiShown(isShown)
     val uiState by viewModel.uiStateFlow.collectAsState()
 
     MaterialTheme(
@@ -199,6 +201,7 @@ fun MainView(
             ) {
                 MediaView(
                     mediaState = uiState.mediaState,
+                    isVisible = uiState.isShown,
                     mediaControlEvents = mediaControlEvents,
                     onMediaProgress = { mediaProgress = it },
                     onClick = { viewModel.showNextMediaItem(isPreviousInstead = false) },

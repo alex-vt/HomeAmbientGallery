@@ -8,11 +8,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
+import java.util.Random
 import kotlin.coroutines.CoroutineContext
 
 enum class MediaType {
@@ -54,10 +55,11 @@ class WatchMediaListUseCase(
      * Shown media list is defined by user selections, and what's in settings.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun execute(mediaSelectionParamsFlow: Flow<MediaSelectionParams>): Flow<List<MediaItem>> {
-        return mediaSelectionParamsFlow.combine(
-            settingsRepository.watchSettings()
-        ) { mediaSelectionParams, settings ->
+    fun execute(
+        mediaSelectionParams: MediaSelectionParams,
+        randomSeed: Long,
+    ): Flow<List<MediaItem>> {
+        return settingsRepository.watchSettings().map { settings ->
             mediaSelectionParams to settings
         }.conflate().transformLatest { (mediaSelectionParams, settings) ->
             coroutineScope {
@@ -104,10 +106,19 @@ class WatchMediaListUseCase(
 
                     val sortedMetadata = with(filteredMetadata) {
                         when (mediaSelectionParams.sortingType) {
-                            SortingType.RANDOM -> shuffled()
-                            SortingType.DATE_NEW_TO_OLD -> sortedByDescending { it.modificationTimestamp }
-                            SortingType.DATE_OLD_TO_NEW -> sortedBy { it.modificationTimestamp }
-                            SortingType.NAME_A_TO_Z -> sortedBy { getFilenameWithoutExtension(it.fullPath) }
+                            SortingType.RANDOM -> shuffled(Random(randomSeed))
+                            SortingType.DATE_NEW_TO_OLD -> sortedByDescending {
+                                it.modificationTimestamp
+                            }
+
+                            SortingType.DATE_OLD_TO_NEW -> sortedBy {
+                                it.modificationTimestamp
+                            }
+
+                            SortingType.NAME_A_TO_Z -> sortedBy {
+                                getFilenameWithoutExtension(it.fullPath)
+                            }
+
                             SortingType.NAME_Z_TO_A -> sortedByDescending {
                                 getFilenameWithoutExtension(it.fullPath)
                             }

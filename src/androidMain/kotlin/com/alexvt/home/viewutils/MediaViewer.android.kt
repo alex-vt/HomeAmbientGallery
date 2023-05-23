@@ -36,14 +36,15 @@ import kotlin.math.roundToInt
 actual fun MediaViewer(
     path: String,
     mediaType: MediaType,
+    isVisible: Boolean,
     mediaControlEvents: Flow<MediaControlEvent>,
     onMediaProgress: (MediaProgress) -> Unit,
     onClick: () -> Unit,
     onLongOrRightClick: () -> Unit,
 ) {
     when (mediaType) {
-        MediaType.VIDEO -> VideoPlayer(path, mediaControlEvents, onMediaProgress)
-        MediaType.IMAGE, MediaType.GIF -> ImageViewer(path)
+        MediaType.VIDEO -> VideoPlayer(path, isVisible, mediaControlEvents, onMediaProgress)
+        MediaType.IMAGE, MediaType.GIF -> ImageViewer(path, isVisible)
         MediaType.LOADING -> LoadingPlaceholder()
         MediaType.NONE -> NoContentPlaceholder()
     }
@@ -93,6 +94,7 @@ private fun Bitmap.getSparseAverageColor(dimensionSampleCount: Int = 10): Int =
 @Composable
 fun VideoPlayer(
     path: String,
+    isVisible: Boolean,
     mediaControlEvents: Flow<MediaControlEvent>,
     onMediaProgress: (MediaProgress) -> Unit,
 ) {
@@ -103,6 +105,26 @@ fun VideoPlayer(
     var currentPositionPersisting by rememberSaveable(path) { mutableStateOf(0L) }
     var isPlayingPersisting by rememberSaveable(path) { mutableStateOf(true) }
 
+    LaunchedEffect(isVisible) {
+        with(exoPlayer) {
+            launch {
+                if (!isVisible) {
+                    pause()
+                    return@launch
+                }
+                val playbackPollIntervalMillis = 8L // 120 FPS
+                val pausePollIntervalMillis = 100L
+                while (true) {
+                    currentPositionPersisting = currentPosition
+                    isPlayingPersisting = isPlaying
+                    val normalizedProgress = getNormalizedProgress()
+                    onMediaProgress(MediaProgress(normalizedProgress, isProgressing = isPlaying))
+                    delay(if (isPlaying) playbackPollIntervalMillis else pausePollIntervalMillis)
+                }
+            }
+        }
+    }
+
     LaunchedEffect(path) {
         with(exoPlayer) {
             setMediaItem(com.google.android.exoplayer2.MediaItem.fromUri(path))
@@ -110,17 +132,6 @@ fun VideoPlayer(
             prepare()
             seekTo(currentPositionPersisting)
             if (isPlayingPersisting) play()
-
-            launch {
-                val progressPollIntervalMillis = 8L // 120 FPS
-                while (true) {
-                    currentPositionPersisting = currentPosition
-                    isPlayingPersisting = isPlaying
-                    val normalizedProgress = getNormalizedProgress()
-                    onMediaProgress(MediaProgress(normalizedProgress, isProgressing = isPlaying))
-                    delay(progressPollIntervalMillis)
-                }
-            }
 
             mediaControlEvents.collect {
                 when (it) {
@@ -156,11 +167,13 @@ private fun ExoPlayer.getNormalizedProgress(): Double =
     }
 
 @Composable
-fun ImageViewer(path: String) {
+fun ImageViewer(path: String, isVisible: Boolean) {
     val context = LocalContext.current
     val imageLoader = ImageLoader.Builder(context)
         .components {
-            add(ImageDecoderDecoder.Factory())
+            if (isVisible) {
+                add(ImageDecoderDecoder.Factory()) // gif support
+            }
         }.build()
     Image(
         painter = rememberAsyncImagePainter(
