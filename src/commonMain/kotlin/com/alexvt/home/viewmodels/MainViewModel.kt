@@ -21,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import me.tatarka.inject.annotations.Inject
@@ -59,7 +61,7 @@ class MainViewModel(
     )
 
     fun switchMediaType(selectionText: String) {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(
                     mediaTypeSelections = bottomSheetState.mediaTypeSelections.map {
@@ -90,7 +92,7 @@ class MainViewModel(
     )
 
     fun selectSorting(selectionText: String) {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(
                     sortingSelections = bottomSheetState.sortingSelections.map {
@@ -107,7 +109,7 @@ class MainViewModel(
     )
 
     fun switchAlbum(selectionText: String) {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(
                     albumSelections = bottomSheetState.albumSelections.map {
@@ -130,7 +132,7 @@ class MainViewModel(
     )
 
     fun switchTag(tagText: String, isToToggleExclusion: Boolean) {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(
                     tagSelections = bottomSheetState.tagSelections.map {
@@ -171,7 +173,7 @@ class MainViewModel(
     }
 
     private fun selectToggleAllTags(isIncluded: Boolean, isExcluded: Boolean) {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(
                     tagSelections = bottomSheetState.tagSelections.map {
@@ -189,7 +191,7 @@ class MainViewModel(
     )
 
     fun selectSlideshowInterval(selectionText: String) {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(
                     slideshowIntervalSelections = bottomSheetState.slideshowIntervalSelections.map {
@@ -215,25 +217,27 @@ class MainViewModel(
     )
 
     fun toggleTagsVisibility() {
-        uiState = uiState.copy(
-            bottomSheetState = with(uiState.bottomSheetState) {
-                copy(
-                    areTagsShowing = !areTagsShowing,
-                    // when hiding tags, reset their selections and cancel editing
-                    isEditingTags = if (areTagsShowing) false else isEditingTags,
-                    tagSelections = if (areTagsShowing) {
-                        tagSelections.map { it.copy(isIncluded = false, isExcluded = false) }
-                    } else {
-                        tagSelections
-                    },
-                )
-            }
-        )
+        updateUiState {
+            copy(
+                bottomSheetState = with(bottomSheetState) {
+                    copy(
+                        areTagsShowing = !areTagsShowing,
+                        // when hiding tags, reset their selections and cancel editing
+                        isEditingTags = if (areTagsShowing) false else isEditingTags,
+                        tagSelections = if (areTagsShowing) {
+                            tagSelections.map { it.copy(isIncluded = false, isExcluded = false) }
+                        } else {
+                            tagSelections
+                        },
+                    )
+                }
+            )
+        }
     }
 
     fun toggleTagsEditing() {
-        uiState = uiState.copy(
-            bottomSheetState = with(uiState.bottomSheetState) {
+        updateUiState {
+            copy(bottomSheetState = with(bottomSheetState) {
                 copy(
                     isEditingTags = !isEditingTags,
                     // when starting editing tags, disable slideshow and ambience to focus on tags
@@ -251,11 +255,12 @@ class MainViewModel(
                     },
                 )
             }
-        )
+            )
+        }
     }
 
     fun toggleAmbientColorSync() {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(
                     isAmbientColorSyncEnabled = !bottomSheetState.isAmbientColorSyncEnabled
@@ -265,7 +270,7 @@ class MainViewModel(
     }
 
     fun selectBluetoothLightColor(color: Long) {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(isAmbientColorSyncEnabled = false)
             )
@@ -274,7 +279,7 @@ class MainViewModel(
     }
 
     fun showNextMediaItem(isPreviousInstead: Boolean) {
-        uiState = with(uiState) {
+        updateUiState {
             val newlyViewedMediaItemIndex = with(mediaState) {
                 val currentMediaItemIndex = viewableMediaItems.indexOf(currentMediaItem)
                 val indexIncrement = if (isPreviousInstead) -1 else 1
@@ -309,15 +314,19 @@ class MainViewModel(
     }
 
     private fun switchSettingsVisibility(isToShow: Boolean) {
-        uiState = uiState.copy(
-            isSettingsEditorShown = isToShow,
-        )
+        updateUiState {
+            copy(
+                isSettingsEditorShown = isToShow,
+            )
+        }
     }
 
     fun setUiShown(isShown: Boolean) {
-        uiState = uiState.copy(
-            isShown = isShown,
-        )
+        updateUiState {
+            copy(
+                isShown = isShown,
+            )
+        }
     }
 
     data class UiState(
@@ -475,40 +484,48 @@ class MainViewModel(
     private fun String.toCapitalizedPhrase(): String =
         lowercase().replaceFirstChar { it.uppercaseChar() }.replace('_', ' ')
 
-    val uiStateFlow: StateFlow<UiState> =
+    private val uiStateMutableFlow: MutableStateFlow<UiState> =
         MutableStateFlow(
             value = getDefaultLoadingState(
                 settings = useCases.watchSettingsUseCase.execute().value
             )
         )
 
-    private var uiState: UiState = (uiStateFlow as MutableStateFlow).value
-        set(newUiState) {
-            field = newUiState.apply((uiStateFlow as MutableStateFlow)::tryEmit)
-        }
+    @Synchronized
+    private fun updateUiState(updater: UiState.() -> UiState) {
+        uiStateMutableFlow.tryEmit(uiStateMutableFlow.value.updater())
+    }
+
+    val uiStateFlow: StateFlow<UiState> = uiStateMutableFlow.asStateFlow()
 
     private suspend fun watchMediaItems(initialRandomSeed: Long) {
         // will be kept same until media selection params change
-        var randomSeed = initialRandomSeed
+        var randomSortSeed = initialRandomSeed
         uiStateFlow.map { it.toMediaSelectionParams() }
             .distinctUntilChanged().flatMapLatest { mediaSelectionParams ->
-                randomSeed += mediaSelectionParams.hashCode()
-                uiState = uiState.updatedWithItems(isUpdatingContent = true)
+                randomSortSeed += mediaSelectionParams.hashCode()
+                updateUiState {
+                    updatedWithItems(isUpdatingContent = true)
+                }
                 uiStateFlow.map { it.isShown && !it.bottomSheetState.isEditingTags }
                     .distinctUntilChanged()
                     .flatMapLatest { isWatchingMediaChanges ->
-                        if (isWatchingMediaChanges) {
-                            useCases.watchMediaListUseCase
-                                .execute(mediaSelectionParams, randomSeed)
-                        } else {
-                            flowOf(uiState.mediaState.viewableMediaItems)
-                        }
+                        useCases.watchMediaListUseCase
+                            .execute(mediaSelectionParams, randomSortSeed).run {
+                                if (isWatchingMediaChanges) {
+                                    this
+                                } else {
+                                    take(1) // no longer watching when hidden
+                                }
+                            }
                     }
             }.collect { mediaItems ->
-                uiState = uiState.updatedWithItems(
-                    newMediaItems = mediaItems,
-                    isUpdatingContent = false,
-                )
+                updateUiState {
+                    updatedWithItems(
+                        newMediaItems = mediaItems,
+                        isUpdatingContent = false,
+                    )
+                }
             }
     }
 
@@ -522,13 +539,17 @@ class MainViewModel(
                     emptyFlow()
                 }
             }.collect { tagHits ->
-                uiState = uiState.updatedWithItems(newTagHits = tagHits)
+                updateUiState {
+                    updatedWithItems(newTagHits = tagHits)
+                }
             }
     }
 
     private suspend fun watchSettings() {
         useCases.watchSettingsUseCase.execute().collect { settings ->
-            uiState = uiState.updatedWithItems(newSettings = settings)
+            updateUiState {
+                updatedWithItems(newSettings = settings)
+            }
         }
     }
 
@@ -545,7 +566,9 @@ class MainViewModel(
                     flowOf(0)
                 }
             }.collect { ambientColor ->
-                uiState = uiState.updatedWithItems(ambientColor = ambientColor)
+                updateUiState {
+                    updatedWithItems(ambientColor = ambientColor)
+                }
             }
     }
 
@@ -582,7 +605,7 @@ class MainViewModel(
     }
 
     private fun disableSlideshow() {
-        uiState = with(uiState) {
+        updateUiState {
             copy(
                 bottomSheetState = bottomSheetState.copy(
                     slideshowIntervalSelections = bottomSheetState
