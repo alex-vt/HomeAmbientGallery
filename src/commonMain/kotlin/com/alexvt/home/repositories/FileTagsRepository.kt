@@ -2,36 +2,80 @@ package com.alexvt.home.repositories
 
 import com.alexvt.home.AppScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import me.tatarka.inject.annotations.Inject
 import java.text.SimpleDateFormat
 
 data class TagMatrix(
     val allFilenames: List<String>,
     val allTags: List<String>,
-    val tagOccurrenceMatrix: List<List<Boolean>>
+    val tagOccurrenceMatrix: List<List<Boolean>>,
+    val timestamp: Long?,
 )
 
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @AppScope
 @Inject
 class FileTagsRepository(
     private val settingsRepository: SettingsRepository,
+    private val fileAccessRepository: FileAccessRepository,
     private val csvRepository: CsvRepository,
     appBackgroundCoroutineScope: CoroutineScope,
 ) {
-    // Combines file reads on settings change and the in memory replicas of writes.
-    // Assuming no external writes.
-    private val inMemoryTagMatrixFlow: MutableStateFlow<TagMatrix> =
-        MutableStateFlow(readTagMatrix(settingsRepository.readSettings()))
+    private val defaultEmptyTagMatrix = TagMatrix(emptyList(), emptyList(), emptyList(), null)
 
+    // Combines file reads on settings change and the in memory replicas of writes.
+    private val inMemoryTagMatrixFlow: MutableStateFlow<TagMatrix> =
+        MutableStateFlow(defaultEmptyTagMatrix)
+
+    // When there are subscribers, watch tags CSV file for updates
     init {
         appBackgroundCoroutineScope.launch {
-            settingsRepository.watchSettings().collect { settings ->
-                inMemoryTagMatrixFlow.tryEmit(readTagMatrix(settings))
-            }
+            inMemoryTagMatrixFlow.subscriptionCount
+                .flatMapLatest { subscriptionCount ->
+                    if (subscriptionCount > 0) {
+                        settingsRepository.watchSettings()
+                            .map { settings ->
+                                settings.albumViewingSettings.tagsCsvPath
+                            }.flatMapLatest { csvPath ->
+                                fileAccessRepository.watchOccurrenceOfChanges(csvPath)
+                                    .map { csvPath }
+                            }
+                    } else {
+                        flowOf()
+                    }
+                }
+                .conflate()
+                .flatMapLatest { csvPath ->
+                    readTagMatrix(csvPath)
+                }
+                .distinctUntilChanged()
+                .collect { tagMatrix ->
+                    val isNotRewritingWithOlder = with(inMemoryTagMatrixFlow.value.timestamp) {
+                        this == null || tagMatrix.timestamp == null || tagMatrix.timestamp > this
+                    }
+                    if (isNotRewritingWithOlder) {
+                        inMemoryTagMatrixFlow.tryEmit(tagMatrix)
+                    }
+                }
         }
     }
 
@@ -49,8 +93,8 @@ class FileTagsRepository(
             it.allTags.toSet()
         }
 
-    fun getTagMatrix(): TagMatrix =
-        inMemoryTagMatrixFlow.value
+    fun watchTagMatrix(): StateFlow<TagMatrix> =
+        inMemoryTagMatrixFlow.asStateFlow()
 
     fun writeTagHit(filenameWithoutExtension: String, tag: String, isHit: Boolean) {
         with(inMemoryTagMatrixFlow.value.withAddedFilenameIfAbsent(filenameWithoutExtension)) {
@@ -77,9 +121,7 @@ class FileTagsRepository(
             csvFileFullPath = settingsRepository.readSettings().albumViewingSettings.tagsCsvPath
         ) {
             with(tagMatrix) {
-                val headerTimestamp =
-                    SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(System.currentTimeMillis())
-                val headerOfFilenames = "<filenames_$headerTimestamp>"
+                val headerOfFilenames = csvHeaderTimestampFormat.format(System.currentTimeMillis())
                 val headerOrTags = allTags.joinToString(separator = ",")
                 val headerRow = listOf(headerOfFilenames, headerOrTags)
                 val filenameToTagsRows =
@@ -98,10 +140,27 @@ class FileTagsRepository(
         }
     }
 
-    private fun readTagMatrix(settings: Settings): TagMatrix =
-        csvRepository.read(
-            csvFileFullPath = settings.albumViewingSettings.tagsCsvPath
-        ) { csvData ->
+    private val csvHeaderTimestampFormat = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss.SSS")
+
+    private suspend fun readTagMatrix(
+        csvFileFullPath: String,
+        maxAttempts: Int = 3,
+        attemptDelayMillis: Long = 100L,
+    ): Flow<TagMatrix> =
+        flow {
+            val tagMatrix = (1..maxAttempts)
+                .asFlow()
+                .map { readTagMatrixFromFile(csvFileFullPath) }
+                .onEach { if (it.isFailure) delay(attemptDelayMillis) }
+                .filter { it.isSuccess }
+                .firstOrNull()?.getOrNull() ?: defaultEmptyTagMatrix
+            yield()
+            emit(tagMatrix)
+        }
+
+    private fun readTagMatrixFromFile(csvFileFullPath: String): Result<TagMatrix> =
+        csvRepository.read(csvFileFullPath) { csvData ->
+            val timestampFromHeader: Long = csvHeaderTimestampFormat.parse(csvData[0][0]).time
             val tagsFromHeader: List<String> = csvData[0][1].splitToTags()
             val filenamesToTags: List<Pair<String, List<String>>> = csvData.drop(1) // header
                 .map { row ->
@@ -120,9 +179,10 @@ class FileTagsRepository(
                     allTagsSortedLikeInHeader.map { tag ->
                         tag in tagsForFilename
                     }
-                }
+                },
+                timestamp = timestampFromHeader,
             )
-        }.getOrElse { TagMatrix(emptyList(), emptyList(), emptyList()) }
+        }
 
     private fun String.splitToTags(separator: String = ","): List<String> =
         split(separator).map { it.trim() }.filter { it.isNotEmpty() }.distinct()

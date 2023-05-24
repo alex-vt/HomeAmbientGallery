@@ -63,6 +63,7 @@ fun MediaView(
         MediaViewer(
             path = mediaState.currentMediaItem.path,
             mediaType = mediaState.currentMediaItem.type,
+            version = mediaState.currentMediaItem.version,
             isVisible,
             mediaControlEvents,
             onMediaProgress,

@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asComposeImageBitmap
@@ -26,6 +27,7 @@ import kotlin.math.roundToInt
 actual fun MediaViewer(
     path: String,
     mediaType: MediaType,
+    version: Long,
     isVisible: Boolean,
     mediaControlEvents: Flow<MediaControlEvent>,
     onMediaProgress: (MediaProgress) -> Unit,
@@ -33,9 +35,9 @@ actual fun MediaViewer(
     onLongOrRightClick: () -> Unit,
 ) {
     when (mediaType) {
-        MediaType.VIDEO -> VideoPlayer(path, isVisible, onClick, onLongOrRightClick)
-        MediaType.GIF -> GifAnimation(path, isVisible)
-        MediaType.IMAGE -> ImageViewer(path)
+        MediaType.VIDEO -> VideoPlayer(path, version, isVisible, onClick, onLongOrRightClick)
+        MediaType.GIF -> GifAnimation(path, version, isVisible)
+        MediaType.IMAGE -> ImageViewer(path, version)
         MediaType.LOADING -> LoadingPlaceholder()
         MediaType.NONE -> NoContentPlaceholder()
     }
@@ -79,25 +81,28 @@ private fun Bitmap.getSparseAverageColor(dimensionSampleCount: Int = 10): Int =
 @Composable
 fun VideoPlayer(
     path: String,
+    version: Long,
     isVisible: Boolean,
     onClick: () -> Unit,
     onLongOrRightClick: () -> Unit,
 ) {
     val state = rememberVideoPlayerState()
     state.isResumed = isVisible
-    val progress by VideoPlayer(
-        url = path,
-        state = state,
-        onClick = onClick,
-        onLongOrRightClick = onLongOrRightClick,
-        modifier = Modifier.fillMaxSize()
-    )
+    key(version) {
+        val progress by VideoPlayer(
+            url = path,
+            state = state,
+            onClick = onClick,
+            onLongOrRightClick = onLongOrRightClick,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }
 
 @Composable
-fun GifAnimation(path: String, isVisible: Boolean) {
+fun GifAnimation(path: String, version: Long, isVisible: Boolean) {
     if (!isVisible) return
-    val codec = remember(path) {
+    val codec = remember(path, version) {
         val bytes = File(path).readBytes()
         Codec.makeFromData(Data.makeFromBytes(bytes))
     }
@@ -142,10 +147,12 @@ fun GifAnimation(path: String, isVisible: Boolean) {
 }
 
 @Composable
-fun ImageViewer(path: String) {
-    Image(
-        bitmap = File(path).inputStream().buffered().use(::loadImageBitmap),
-        contentDescription = "",
-        modifier = Modifier.fillMaxSize()
-    )
+fun ImageViewer(path: String, version: Long) {
+    key(version) {
+        Image(
+            bitmap = File(path).inputStream().buffered().use(::loadImageBitmap),
+            contentDescription = "",
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }

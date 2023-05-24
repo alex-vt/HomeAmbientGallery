@@ -4,8 +4,8 @@ import com.alexvt.home.AppScope
 import de.siegmar.fastcsv.reader.CsvReader
 import de.siegmar.fastcsv.writer.CsvWriter
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -58,11 +58,9 @@ class CsvRepository(
         MutableSharedFlow(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_LATEST)
 
     init {
-        val writesSpacingMillis = 5000L
         appBackgroundCoroutineScope.launch {
             csvWriteCommandFlow.conflate().collect { (csvFileFullPath, writer) ->
                 write(csvFileFullPath, writer).exceptionOrNull()?.run(csvWriteErrorFlow::tryEmit)
-                delay(writesSpacingMillis)
             }
         }
     }

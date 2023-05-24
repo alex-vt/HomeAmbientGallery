@@ -59,18 +59,19 @@ class MainViewModel(
     )
 
     fun switchMediaType(selectionText: String) {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                mediaTypeSelections = uiState.bottomSheetState
-                    .mediaTypeSelections.map {
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(
+                    mediaTypeSelections = bottomSheetState.mediaTypeSelections.map {
                         if (it.name == selectionText) {
                             it.copy(isSelected = !it.isSelected)
                         } else {
                             it
                         }
                     }
+                )
             )
-        )
+        }
     }
 
     data class MediaState(
@@ -89,14 +90,15 @@ class MainViewModel(
     )
 
     fun selectSorting(selectionText: String) {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                sortingSelections = uiState.bottomSheetState
-                    .sortingSelections.map {
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(
+                    sortingSelections = bottomSheetState.sortingSelections.map {
                         it.copy(isSelected = it.name == selectionText)
                     }
+                )
             )
-        )
+        }
     }
 
     data class AlbumSelection(
@@ -105,18 +107,19 @@ class MainViewModel(
     )
 
     fun switchAlbum(selectionText: String) {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                albumSelections = uiState.bottomSheetState
-                    .albumSelections.map {
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(
+                    albumSelections = bottomSheetState.albumSelections.map {
                         if (it.name == selectionText) {
                             it.copy(isSelected = !it.isSelected)
                         } else {
                             it
                         }
                     }
+                )
             )
-        )
+        }
     }
 
     data class TagSelection(
@@ -127,18 +130,22 @@ class MainViewModel(
     )
 
     fun switchTag(tagText: String, isToToggleExclusion: Boolean) {
-        with(uiState.bottomSheetState) {
-            uiState = uiState.copy(
-                bottomSheetState = copy(
-                    tagSelections = tagSelections.map {
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(
+                    tagSelections = bottomSheetState.tagSelections.map {
                         when { // in edit mode, hit toggle use case replaces inclusions/exclusions
                             it.name != tagText -> it
-                            isEditingTags -> it.copy(isHit = !it.isHit).also { updatedSelection ->
-                                useCases.setTagHitUseCase.execute(
-                                    path = uiState.mediaState.currentMediaItem.path,
-                                    tag = updatedSelection.name,
-                                    isHit = updatedSelection.isHit,
-                                )
+                            bottomSheetState.isEditingTags -> it.copy(
+                                isHit = !it.isHit
+                            ).also { updatedSelection ->
+                                backgroundCoroutineScope.launch {
+                                    useCases.setTagHitUseCase.execute(
+                                        path = mediaState.currentMediaItem.path,
+                                        tag = updatedSelection.name,
+                                        isHit = updatedSelection.isHit,
+                                    )
+                                }
                             }
 
                             it.isExcluded -> it.copy(isIncluded = false, isExcluded = false)
@@ -164,13 +171,15 @@ class MainViewModel(
     }
 
     private fun selectToggleAllTags(isIncluded: Boolean, isExcluded: Boolean) {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                tagSelections = uiState.bottomSheetState.tagSelections.map {
-                    it.copy(isIncluded = isIncluded, isExcluded = isExcluded)
-                }
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(
+                    tagSelections = bottomSheetState.tagSelections.map {
+                        it.copy(isIncluded = isIncluded, isExcluded = isExcluded)
+                    }
+                )
             )
-        )
+        }
     }
 
     data class SlideshowIntervalSelection(
@@ -180,14 +189,15 @@ class MainViewModel(
     )
 
     fun selectSlideshowInterval(selectionText: String) {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                slideshowIntervalSelections = uiState.bottomSheetState
-                    .slideshowIntervalSelections.map {
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(
+                    slideshowIntervalSelections = bottomSheetState.slideshowIntervalSelections.map {
                         it.copy(isSelected = it.name == selectionText)
                     }
+                )
             )
-        )
+        }
     }
 
     data class BottomSheetState(
@@ -205,9 +215,9 @@ class MainViewModel(
     )
 
     fun toggleTagsVisibility() {
-        with(uiState.bottomSheetState) {
-            uiState = uiState.copy(
-                bottomSheetState = copy(
+        uiState = uiState.copy(
+            bottomSheetState = with(uiState.bottomSheetState) {
+                copy(
                     areTagsShowing = !areTagsShowing,
                     // when hiding tags, reset their selections and cancel editing
                     isEditingTags = if (areTagsShowing) false else isEditingTags,
@@ -217,14 +227,14 @@ class MainViewModel(
                         tagSelections
                     },
                 )
-            )
-        }
+            }
+        )
     }
 
     fun toggleTagsEditing() {
-        with(uiState.bottomSheetState) {
-            uiState = uiState.copy(
-                bottomSheetState = copy(
+        uiState = uiState.copy(
+            bottomSheetState = with(uiState.bottomSheetState) {
+                copy(
                     isEditingTags = !isEditingTags,
                     // when starting editing tags, disable slideshow and ambience to focus on tags
                     isAmbientColorSyncEnabled = if (!isEditingTags) {
@@ -240,39 +250,45 @@ class MainViewModel(
                         slideshowIntervalSelections
                     },
                 )
+            }
+        )
+    }
+
+    fun toggleAmbientColorSync() {
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(
+                    isAmbientColorSyncEnabled = !bottomSheetState.isAmbientColorSyncEnabled
+                )
             )
         }
     }
 
-    fun toggleAmbientColorSync() {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                isAmbientColorSyncEnabled = !uiState.bottomSheetState.isAmbientColorSyncEnabled
-            )
-        )
-    }
-
     fun selectBluetoothLightColor(color: Long) {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(isAmbientColorSyncEnabled = false)
-        )
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(isAmbientColorSyncEnabled = false)
+            )
+        }
         useCases.setBluetoothLightColorUseCase.execute(color, backgroundCoroutineScope)
     }
 
     fun showNextMediaItem(isPreviousInstead: Boolean) {
-        val newlyViewedMediaItemIndex = with(uiState.mediaState) {
-            val currentMediaItemIndex = viewableMediaItems.indexOf(currentMediaItem)
-            val indexIncrement = if (isPreviousInstead) -1 else 1
-            (currentMediaItemIndex + indexIncrement)
-                .coerceAtMost(viewableMediaItems.size - 1)
-                .coerceAtLeast(0)
-        }
-        uiState = uiState.copy(
-            mediaState = uiState.mediaState.copy(
-                currentMediaItem = uiState.mediaState.viewableMediaItems[newlyViewedMediaItemIndex],
-                naturalCounter = newlyViewedMediaItemIndex + 1,
+        uiState = with(uiState) {
+            val newlyViewedMediaItemIndex = with(mediaState) {
+                val currentMediaItemIndex = viewableMediaItems.indexOf(currentMediaItem)
+                val indexIncrement = if (isPreviousInstead) -1 else 1
+                (currentMediaItemIndex + indexIncrement)
+                    .coerceAtMost(viewableMediaItems.size - 1)
+                    .coerceAtLeast(0)
+            }
+            copy(
+                mediaState = mediaState.copy(
+                    currentMediaItem = mediaState.viewableMediaItems[newlyViewedMediaItemIndex],
+                    naturalCounter = newlyViewedMediaItemIndex + 1,
+                )
             )
-        )
+        }
     }
 
     fun openSettings() {
@@ -330,7 +346,7 @@ class MainViewModel(
             } else {
                 val preferableIndex = if (isUpdateFinished) 0 else naturalCounter - 1
                 updatedMediaItems.getOrElse(preferableIndex) {
-                    MediaItem(path = "", type = MediaType.NONE) // placeholder
+                    MediaItem(path = "", type = MediaType.NONE, version = 0) // placeholder
                 }
             }
         }
@@ -411,7 +427,7 @@ class MainViewModel(
         )
 
     private val loadingPlaceholderMediaItem: MediaItem =
-        MediaItem(path = "", type = MediaType.LOADING)
+        MediaItem(path = "", type = MediaType.LOADING, version = 0)
 
     private fun getDefaultLoadingState(settings: Settings): UiState {
         return UiState(
@@ -475,23 +491,20 @@ class MainViewModel(
         // will be kept same until media selection params change
         var randomSeed = initialRandomSeed
         uiStateFlow.map { it.toMediaSelectionParams() }
-            .distinctUntilChanged { old, new ->
-                if (old != new) randomSeed += new.hashCode()
-                old == new
-            }
-            .flatMapLatest { mediaSelectionParams ->
+            .distinctUntilChanged().flatMapLatest { mediaSelectionParams ->
+                randomSeed += mediaSelectionParams.hashCode()
                 uiState = uiState.updatedWithItems(isUpdatingContent = true)
-                uiStateFlow.map { it.isShown }
+                uiStateFlow.map { it.isShown && !it.bottomSheetState.isEditingTags }
                     .distinctUntilChanged()
-                    .flatMapLatest { isShown ->
-                        if (isShown) {
+                    .flatMapLatest { isWatchingMediaChanges ->
+                        if (isWatchingMediaChanges) {
                             useCases.watchMediaListUseCase
                                 .execute(mediaSelectionParams, randomSeed)
                         } else {
                             flowOf(uiState.mediaState.viewableMediaItems)
                         }
                     }
-            }.collectLatest { mediaItems ->
+            }.collect { mediaItems ->
                 uiState = uiState.updatedWithItems(
                     newMediaItems = mediaItems,
                     isUpdatingContent = false,
@@ -508,13 +521,13 @@ class MainViewModel(
                 } else {
                     emptyFlow()
                 }
-            }.collectLatest { tagHits ->
+            }.collect { tagHits ->
                 uiState = uiState.updatedWithItems(newTagHits = tagHits)
             }
     }
 
     private suspend fun watchSettings() {
-        useCases.watchSettingsUseCase.execute().collectLatest { settings ->
+        useCases.watchSettingsUseCase.execute().collect { settings ->
             uiState = uiState.updatedWithItems(newSettings = settings)
         }
     }
@@ -531,7 +544,7 @@ class MainViewModel(
                 } else {
                     flowOf(0)
                 }
-            }.collectLatest { ambientColor ->
+            }.collect { ambientColor ->
                 uiState = uiState.updatedWithItems(ambientColor = ambientColor)
             }
     }
@@ -569,14 +582,16 @@ class MainViewModel(
     }
 
     private fun disableSlideshow() {
-        uiState = uiState.copy(
-            bottomSheetState = uiState.bottomSheetState.copy(
-                slideshowIntervalSelections = uiState.bottomSheetState
-                    .slideshowIntervalSelections.mapIndexed { index, selection ->
-                        selection.copy(isSelected = index == 0)
-                    }
+        uiState = with(uiState) {
+            copy(
+                bottomSheetState = bottomSheetState.copy(
+                    slideshowIntervalSelections = bottomSheetState
+                        .slideshowIntervalSelections.mapIndexed { index, selection ->
+                            selection.copy(isSelected = index == 0)
+                        }
+                )
             )
-        )
+        }
     }
 
     private fun UiState.slideshowIntervalOrNull(): Long? =

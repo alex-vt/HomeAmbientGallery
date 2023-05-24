@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -36,6 +37,7 @@ import kotlin.math.roundToInt
 actual fun MediaViewer(
     path: String,
     mediaType: MediaType,
+    version: Long,
     isVisible: Boolean,
     mediaControlEvents: Flow<MediaControlEvent>,
     onMediaProgress: (MediaProgress) -> Unit,
@@ -43,8 +45,11 @@ actual fun MediaViewer(
     onLongOrRightClick: () -> Unit,
 ) {
     when (mediaType) {
-        MediaType.VIDEO -> VideoPlayer(path, isVisible, mediaControlEvents, onMediaProgress)
-        MediaType.IMAGE, MediaType.GIF -> ImageViewer(path, isVisible)
+        MediaType.VIDEO -> VideoPlayer(
+            path, version, isVisible, mediaControlEvents, onMediaProgress
+        )
+
+        MediaType.IMAGE, MediaType.GIF -> ImageViewer(path, version, isVisible)
         MediaType.LOADING -> LoadingPlaceholder()
         MediaType.NONE -> NoContentPlaceholder()
     }
@@ -94,6 +99,7 @@ private fun Bitmap.getSparseAverageColor(dimensionSampleCount: Int = 10): Int =
 @Composable
 fun VideoPlayer(
     path: String,
+    version: Long,
     isVisible: Boolean,
     mediaControlEvents: Flow<MediaControlEvent>,
     onMediaProgress: (MediaProgress) -> Unit,
@@ -102,7 +108,7 @@ fun VideoPlayer(
     val exoPlayer = remember { ExoPlayer.Builder(context).build() }
 
     // Playback parameters need to update only on recompositions with new path.
-    var currentPositionPersisting by rememberSaveable(path) { mutableStateOf(0L) }
+    var currentPositionPersisting by rememberSaveable(path, version) { mutableStateOf(0L) }
     var isPlayingPersisting by rememberSaveable(path) { mutableStateOf(true) }
 
     LaunchedEffect(isVisible) {
@@ -125,7 +131,7 @@ fun VideoPlayer(
         }
     }
 
-    LaunchedEffect(path) {
+    LaunchedEffect(path, version) {
         with(exoPlayer) {
             setMediaItem(com.google.android.exoplayer2.MediaItem.fromUri(path))
             repeatMode = Player.REPEAT_MODE_ONE
@@ -167,7 +173,7 @@ private fun ExoPlayer.getNormalizedProgress(): Double =
     }
 
 @Composable
-fun ImageViewer(path: String, isVisible: Boolean) {
+fun ImageViewer(path: String, version: Long, isVisible: Boolean) {
     val context = LocalContext.current
     val imageLoader = ImageLoader.Builder(context)
         .components {
@@ -175,11 +181,13 @@ fun ImageViewer(path: String, isVisible: Boolean) {
                 add(ImageDecoderDecoder.Factory()) // gif support
             }
         }.build()
-    Image(
-        painter = rememberAsyncImagePainter(
-            ImageRequest.Builder(context).data(data = path).build(), imageLoader = imageLoader
-        ),
-        contentDescription = null,
-        modifier = Modifier.fillMaxSize(),
-    )
+    key(version) {
+        Image(
+            painter = rememberAsyncImagePainter(
+                ImageRequest.Builder(context).data(data = path).build(), imageLoader = imageLoader
+            ),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }
