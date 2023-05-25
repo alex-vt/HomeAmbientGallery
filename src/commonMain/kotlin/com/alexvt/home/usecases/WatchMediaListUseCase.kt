@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEmpty
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.yield
 import me.tatarka.inject.annotations.Inject
@@ -75,6 +76,8 @@ class WatchMediaListUseCase(
                     fileAccessRepository.watchOccurrenceOfChanges(albumPath)
                 }.map {
                     selectedAlbumPaths to tagMatrix
+                }.onEmpty {
+                    emit(emptyList<String>() to tagMatrix)
                 }
             }
 
