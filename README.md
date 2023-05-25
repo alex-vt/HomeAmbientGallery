@@ -9,6 +9,8 @@ Media viewer / slideshow app that adjusts Bluetooth lighting to the image. For d
 * Or choose Bluetooth lights color manually.
 * Start / stop slideshow, select interval between slides.
 
+[<img src="example/example1.png"/>](https://raw.githubusercontent.com/alex-vt/HomeAmbientGallery/main/example/example1.png)
+
 ### Controls
 
 Click shown image:
@@ -34,6 +36,12 @@ Keyboard controls:
 | F     | Enter / exit fullscreen                |
 | F11   | Enter / exit fullscreen                |
 | Esc   | Exit fullscreen                        |
+
+Android version:
+
+[<img src="example/example2.png" width="31%"/>](https://raw.githubusercontent.com/alex-vt/HomeAmbientGallery/main/example/example2.png)
+[<img src="example/example3.png" width="67%"/>](https://raw.githubusercontent.com/alex-vt/HomeAmbientGallery/main/example/example3.png)
+
 
 ## Build & run
 
