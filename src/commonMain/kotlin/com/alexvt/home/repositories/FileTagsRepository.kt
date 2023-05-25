@@ -3,7 +3,6 @@ package com.alexvt.home.repositories
 import com.alexvt.home.AppScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +30,7 @@ data class TagMatrix(
     val timestamp: Long?,
 )
 
-@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 @AppScope
 @Inject
 class FileTagsRepository(
@@ -160,7 +159,12 @@ class FileTagsRepository(
 
     private fun readTagMatrixFromFile(csvFileFullPath: String): Result<TagMatrix> =
         csvRepository.read(csvFileFullPath) { csvData ->
-            val timestampFromHeader: Long = csvHeaderTimestampFormat.parse(csvData[0][0]).time
+            val timestampFromHeader: Long? =
+                try {
+                    csvHeaderTimestampFormat.parse(csvData[0][0]).time
+                } catch (throwable: Throwable) {
+                    null // timestamp is optional
+                }
             val tagsFromHeader: List<String> = csvData[0][1].splitToTags()
             val filenamesToTags: List<Pair<String, List<String>>> = csvData.drop(1) // header
                 .map { row ->
