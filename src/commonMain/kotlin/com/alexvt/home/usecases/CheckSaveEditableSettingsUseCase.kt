@@ -26,7 +26,7 @@ class CheckSaveEditableSettingsUseCase(
                     copy(
                         bluetoothLightsSettings = bluetoothLightsSettings.copy(
                             bluetoothMacAddresses = editableSettings.bluetoothLightsMacAddresses
-                                .lines(),
+                                .lines().filter { it.isNotBlank() },
                         ),
                         albumViewingSettings = albumViewingSettings.copy(
                             folderPaths = editableSettings.albumPaths.lines(),

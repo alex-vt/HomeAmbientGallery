@@ -359,6 +359,9 @@ fun BottomSheetView(
                             StandardButton(text = "Exclude all", onClick = onExcludeAllTags)
                             StandardButton(text = "Clear all", onClick = onClearAllTags)
                         }
+                        if (!bottomSheetState.areBluetoothOptionsShowing) {
+                            Spacer(Modifier.height(8.dp))
+                        }
                     }
                 }
             }
